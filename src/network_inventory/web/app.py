@@ -236,9 +236,24 @@ def register_edit_routes(app: Flask, get_conn) -> None:
                 suggestion = inventory.next_free_ip(conn, int(group_id))
             except (ValidationError, ValueError):
                 suggestion = None
+        used = {
+            i.expected_ip: d.name
+            for d in inventory.list_devices(conn)
+            for i in d.interfaces
+            if i.expected_ip
+        }
+        ip_data = {
+            "groups": [
+                {"id": g.id, "name": g.name, "first": g.first_ip, "last": g.last_ip}
+                for g in groups_
+            ],
+            "used": used,
+            "group": device.group_id if device else None,
+        }
         return (
             render_template(
                 "device_form.html",
+                ip_data=ip_data,
                 device=device,
                 groups=groups_,
                 form=form,
