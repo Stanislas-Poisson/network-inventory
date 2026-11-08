@@ -18,12 +18,29 @@ class ValidationError(ValueError):
 
 
 @dataclass(frozen=True)
+class IpRange:
+    first_ip: str
+    last_ip: str
+
+    def contains(self, ip: str) -> bool:
+        return int(parse_ip(self.first_ip)) <= int(parse_ip(ip)) <= int(parse_ip(self.last_ip))
+
+    def __str__(self) -> str:
+        return f"{self.first_ip} to {self.last_ip}"
+
+
+@dataclass(frozen=True)
 class Group:
     id: int
     name: str
-    first_ip: str
-    last_ip: str
+    ranges: tuple[IpRange, ...]
     is_free: bool
+
+    def contains(self, ip: str) -> bool:
+        return any(r.contains(ip) for r in self.ranges)
+
+    def describe(self) -> str:
+        return ", ".join(str(r) for r in self.ranges)
 
 
 @dataclass(frozen=True)
@@ -40,7 +57,6 @@ class Device:
     id: int
     name: str
     type: str
-    category: str
     group_id: int
     notes: str
     interfaces: list[Interface] = field(default_factory=list)
@@ -71,83 +87,111 @@ def _clean_name(value: str, what: str) -> str:
 # ---------------------------------------------------------------- groups
 
 
-def _group(row: sqlite3.Row) -> Group:
-    return Group(row["id"], row["name"], row["first_ip"], row["last_ip"], bool(row["is_free"]))
+def _group(conn: sqlite3.Connection, row: sqlite3.Row) -> Group:
+    ranges = conn.execute(
+        "SELECT first_ip, last_ip FROM group_ranges WHERE group_id = ?", (row["id"],)
+    ).fetchall()
+    ordered = sorted((IpRange(r["first_ip"], r["last_ip"]) for r in ranges), key=_range_key)
+    return Group(row["id"], row["name"], tuple(ordered), bool(row["is_free"]))
+
+
+def _range_key(r: IpRange) -> int:
+    return int(parse_ip(r.first_ip))
 
 
 def get_group(conn: sqlite3.Connection, group_id: int) -> Group:
     row = conn.execute("SELECT * FROM groups WHERE id = ?", (group_id,)).fetchone()
     if row is None:
         raise ValidationError("This group does not exist.")
-    return _group(row)
+    return _group(conn, row)
 
 
 def list_groups(conn: sqlite3.Connection) -> list[Group]:
-    rows = conn.execute("SELECT * FROM groups ORDER BY first_ip").fetchall()
-    return sorted((_group(r) for r in rows), key=lambda g: int(parse_ip(g.first_ip)))
+    groups = [_group(conn, r) for r in conn.execute("SELECT * FROM groups").fetchall()]
+    return sorted(groups, key=lambda g: int(parse_ip(g.ranges[0].first_ip)) if g.ranges else 2**32)
 
 
-def _check_range(conn: sqlite3.Connection, first: str, last: str, own_id: int | None) -> None:
-    low, high = parse_ip(first), parse_ip(last)
-    if low > high:
-        raise ValidationError("The first IP of a group cannot be after its last IP.")
+def _clean_ranges(ranges) -> list[IpRange]:
+    """Validate the (first, last) pairs of one group: at least one, in order, not overlapping."""
+    cleaned = []
+    for first, last in ranges:
+        low, high = parse_ip(first), parse_ip(last)
+        if low > high:
+            raise ValidationError("The first IP of a range cannot be after its last IP.")
+        cleaned.append(IpRange(str(low), str(high)))
+    if not cleaned:
+        raise ValidationError("A group needs at least one range.")
+    cleaned.sort(key=_range_key)
+    for before, after in zip(cleaned, cleaned[1:], strict=False):
+        if parse_ip(after.first_ip) <= parse_ip(before.last_ip):
+            raise ValidationError(f"The ranges {before} and {after} overlap.")
+    return cleaned
+
+
+def _check_overlap(conn: sqlite3.Connection, ranges: list[IpRange], own_id: int | None) -> None:
     for other in list_groups(conn):
         if other.id == own_id:
             continue
-        if low <= parse_ip(other.last_ip) and parse_ip(other.first_ip) <= high:
-            raise ValidationError(f"The range overlaps the group {other.name!r}.")
+        for mine in ranges:
+            for theirs in other.ranges:
+                if parse_ip(mine.first_ip) <= parse_ip(theirs.last_ip) and parse_ip(
+                    theirs.first_ip
+                ) <= parse_ip(mine.last_ip):
+                    raise ValidationError(f"The range {mine} overlaps the group {other.name!r}.")
 
 
-def _check_devices_fit(conn: sqlite3.Connection, group_id: int, first: str, last: str) -> None:
-    low, high = parse_ip(first), parse_ip(last)
+def _check_devices_fit(conn: sqlite3.Connection, group_id: int, ranges: list[IpRange]) -> None:
     rows = conn.execute(
         "SELECT d.name, i.expected_ip FROM interfaces i JOIN devices d ON d.id = i.device_id"
         " WHERE d.group_id = ? AND i.expected_ip IS NOT NULL",
         (group_id,),
     ).fetchall()
     for row in rows:
-        if not low <= parse_ip(row["expected_ip"]) <= high:
+        if not any(r.contains(row["expected_ip"]) for r in ranges):
             raise ValidationError(
-                f"The device {row['name']!r} has {row['expected_ip']}, outside the new range."
+                f"The device {row['name']!r} has {row['expected_ip']}, outside the new ranges."
             )
 
 
-def create_group(
-    conn: sqlite3.Connection, name: str, first_ip: str, last_ip: str, is_free: bool = False
-) -> int:
+def _save_ranges(conn: sqlite3.Connection, group_id: int, ranges: list[IpRange]) -> None:
+    conn.execute("DELETE FROM group_ranges WHERE group_id = ?", (group_id,))
+    conn.executemany(
+        "INSERT INTO group_ranges (group_id, first_ip, last_ip) VALUES (?, ?, ?)",
+        [(group_id, r.first_ip, r.last_ip) for r in ranges],
+    )
+
+
+def create_group(conn: sqlite3.Connection, name: str, ranges, is_free: bool = False) -> int:
+    """Create a group. ``ranges`` are (first_ip, last_ip) pairs: a group can have several."""
     name = _clean_name(name, "group")
-    first_ip, last_ip = str(parse_ip(first_ip)), str(parse_ip(last_ip))
-    _check_range(conn, first_ip, last_ip, None)
+    cleaned = _clean_ranges(ranges)
+    _check_overlap(conn, cleaned, None)
     try:
         with conn:
             cur = conn.execute(
-                "INSERT INTO groups (name, first_ip, last_ip, is_free) VALUES (?, ?, ?, ?)",
-                (name, first_ip, last_ip, int(is_free)),
+                "INSERT INTO groups (name, is_free) VALUES (?, ?)", (name, int(is_free))
             )
+            _save_ranges(conn, cur.lastrowid, cleaned)
     except sqlite3.IntegrityError:
         raise ValidationError(f"A group named {name!r} already exists.") from None
     return cur.lastrowid
 
 
 def update_group(
-    conn: sqlite3.Connection,
-    group_id: int,
-    name: str,
-    first_ip: str,
-    last_ip: str,
-    is_free: bool = False,
+    conn: sqlite3.Connection, group_id: int, name: str, ranges, is_free: bool = False
 ) -> None:
     get_group(conn, group_id)
     name = _clean_name(name, "group")
-    first_ip, last_ip = str(parse_ip(first_ip)), str(parse_ip(last_ip))
-    _check_range(conn, first_ip, last_ip, group_id)
-    _check_devices_fit(conn, group_id, first_ip, last_ip)
+    cleaned = _clean_ranges(ranges)
+    _check_overlap(conn, cleaned, group_id)
+    _check_devices_fit(conn, group_id, cleaned)
     try:
         with conn:
             conn.execute(
-                "UPDATE groups SET name = ?, first_ip = ?, last_ip = ?, is_free = ? WHERE id = ?",
-                (name, first_ip, last_ip, int(is_free), group_id),
+                "UPDATE groups SET name = ?, is_free = ? WHERE id = ?",
+                (name, int(is_free), group_id),
             )
+            _save_ranges(conn, group_id, cleaned)
     except sqlite3.IntegrityError:
         raise ValidationError(f"A group named {name!r} already exists.") from None
 
@@ -167,10 +211,9 @@ def delete_group(conn: sqlite3.Connection, group_id: int) -> None:
 
 
 def _check_ip_in_group(group: Group, ip: str) -> None:
-    if not parse_ip(group.first_ip) <= parse_ip(ip) <= parse_ip(group.last_ip):
+    if not group.contains(ip):
         raise ValidationError(
-            f"{ip} is outside the range of the group {group.name!r}"
-            f" ({group.first_ip} to {group.last_ip})."
+            f"{ip} is outside the range of the group {group.name!r} ({group.describe()})."
         )
 
 
@@ -202,7 +245,6 @@ def create_device(
     group_id: int,
     interfaces: list[tuple[str, str | None]] = (),
     type: str = "",
-    category: str = "",
     notes: str = "",
 ) -> int:
     """Create a device and its interfaces, given as (mac, expected_ip) pairs."""
@@ -212,9 +254,8 @@ def create_device(
     try:
         with conn:
             cur = conn.execute(
-                "INSERT INTO devices (name, type, category, group_id, notes)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (name, type.strip(), category.strip(), group_id, notes.strip()),
+                "INSERT INTO devices (name, type, group_id, notes) VALUES (?, ?, ?, ?)",
+                (name, type.strip(), group_id, notes.strip()),
             )
             device_id = cur.lastrowid
             for mac, ip in cleaned:
@@ -230,7 +271,6 @@ def update_device(
     name: str,
     group_id: int,
     type: str = "",
-    category: str = "",
     notes: str = "",
 ) -> None:
     get_device(conn, device_id)
@@ -244,9 +284,8 @@ def update_device(
     try:
         with conn:
             conn.execute(
-                "UPDATE devices SET name = ?, type = ?, category = ?, group_id = ?, notes = ?"
-                " WHERE id = ?",
-                (name, type.strip(), category.strip(), group_id, notes.strip(), device_id),
+                "UPDATE devices SET name = ?, type = ?, group_id = ?, notes = ? WHERE id = ?",
+                (name, type.strip(), group_id, notes.strip(), device_id),
             )
     except sqlite3.IntegrityError:
         raise ValidationError(f"A device named {name!r} already exists.") from None
@@ -269,7 +308,6 @@ def _device(conn: sqlite3.Connection, row: sqlite3.Row) -> Device:
         row["id"],
         row["name"],
         row["type"],
-        row["category"],
         row["group_id"],
         row["notes"],
         interfaces,
@@ -281,6 +319,14 @@ def get_device(conn: sqlite3.Connection, device_id: int) -> Device:
     if row is None:
         raise ValidationError("This device does not exist.")
     return _device(conn, row)
+
+
+def list_types(conn: sqlite3.Connection) -> list[str]:
+    """The distinct device types already used, to suggest them again."""
+    rows = conn.execute(
+        "SELECT DISTINCT type FROM devices WHERE type != '' ORDER BY type COLLATE NOCASE"
+    ).fetchall()
+    return [r["type"] for r in rows]
 
 
 def list_devices(conn: sqlite3.Connection) -> list[Device]:
@@ -338,9 +384,49 @@ def next_free_ip(conn: sqlite3.Connection, group_id: int) -> str | None:
         row["expected_ip"]
         for row in conn.execute("SELECT expected_ip FROM interfaces WHERE expected_ip IS NOT NULL")
     }
-    low, high = int(parse_ip(group.first_ip)), int(parse_ip(group.last_ip))
-    for value in range(low, high + 1):
-        candidate = str(ipaddress.IPv4Address(value))
-        if candidate not in used:
-            return candidate
+    for ip_range in group.ranges:
+        for value in range(int(parse_ip(ip_range.first_ip)), int(parse_ip(ip_range.last_ip)) + 1):
+            candidate = str(ipaddress.IPv4Address(value))
+            if candidate not in used:
+                return candidate
     return None
+
+
+# ---------------------------------------------------------------- settings
+
+
+def get_setting(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    with conn:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+
+
+_PREFIX = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}$")
+
+
+def clean_prefix(value: str) -> str:
+    """The first three numbers of the network, such as ``192.168.1``."""
+    prefix = value.strip().strip(".")
+    if not _PREFIX.match(prefix):
+        raise ValidationError("The network is three numbers separated by dots, like 192.168.1.")
+    parse_ip(prefix + ".1")
+    return ".".join(str(int(part)) for part in prefix.split("."))
+
+
+def with_octet(prefix: str, value: str, what: str) -> str:
+    """``prefix`` and the last number typed by the user, as a full IP."""
+    try:
+        octet = int(value)
+    except ValueError:
+        raise ValidationError(f"The {what} number must be between 1 and 254.") from None
+    if not 1 <= octet <= 254:
+        raise ValidationError(f"The {what} number must be between 1 and 254.")
+    return f"{prefix}.{octet}"

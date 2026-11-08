@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block head %}
+  <script src="{{ url_for('static', filename='ip-form.js') }}" defer></script>
+{% endblock %}
+{% block content %}
+<h1>{% if device %}{{ device.name }}{% else %}New device{% endif %}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post" class="stack"{% if not device %} data-ip-form='{{ ip_data|tojson }}'{% endif %}>
+  {{ csrf() }}
+  <label>Name <input name="name" value="{{ form.get('name', '') }}" required></label>
+  <label>Group
+    <select name="group_id" required>
+      {% for group in groups %}
+        <option value="{{ group.id }}"{% if group.id|string == form.get('group_id', '')|string %} selected{% endif %}>
+          {{ group.name }} ({{ group.describe() }})
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Type <input name="type" value="{{ form.get('type', '') }}" list="device-types" autocomplete="off"></label>
+  <datalist id="device-types">{% for t in types %}<option value="{{ t }}">{% endfor %}</datalist>
+  <label>Notes <textarea name="notes" rows="3">{{ form.get('notes', '') }}</textarea></label>
+  {% if not device %}
+    {% if connected %}
+      {# Shown by the script: without it the menu would do nothing. #}
+      <div hidden data-connected>
+        <label>Fill from a connected device
+          <select aria-label="Connected devices not in the inventory">
+            <option value="">Choose a device seen by the last scan</option>
+            {% for o in connected %}
+              <option value="{{ o.mac }}" data-ip="{{ o.ip }}">{{ o.ip }} - {{ o.mac }} - {{ o.vendor or "unknown" }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+    {% endif %}
+    <label>MAC <input name="mac" value="{{ form.get('mac', '') }}" placeholder="aa:bb:cc:00:11:22" class="mono"></label>
+    <label>IP <input name="ip" value="{{ form.get('ip', '') or suggestion or '' }}" inputmode="decimal"></label>
+    <p class="hint ip-feedback" role="status" aria-live="polite"></p>
+    {% if suggestion %}<p class="hint">First free IP of this group: {{ suggestion }}</p>{% endif %}
+  {% endif %}
+  <button>{% if device %}Save{% else %}Create the device{% endif %}</button>
+  <a href="{{ url_for('index') }}">Back</a>
+</form>
+
+{% if device %}
+  <h2>Network interfaces</h2>
+  {% for i in device.interfaces %}
+    <form method="post" action="{{ url_for('interface_save', interface_id=i.id) }}" class="row">
+      {{ csrf() }}
+      <label>MAC <input name="mac" value="{{ i.mac }}" class="mono" required></label>
+      <label>IP <input name="ip" value="{{ i.expected_ip or '' }}" inputmode="decimal"></label>
+      <label>Label <input name="label" value="{{ i.label }}"></label>
+      <button>Save</button>
+      <button class="danger" formaction="{{ url_for('interface_delete', interface_id=i.id) }}">Delete</button>
+    </form>
+  {% else %}
+    <p class="empty">No interface.</p>
+  {% endfor %}
+
+  <h3>Add a network card</h3>
+  <form method="post" action="{{ url_for('interface_add', device_id=device.id) }}" class="row"
+        data-ip-form='{{ ip_data|tojson }}'>
+    {{ csrf() }}
+    <label>MAC <input name="mac" class="mono" required></label>
+    <label>IP <input name="ip" value="{{ suggestion or '' }}" inputmode="decimal"></label>
+    <p class="hint ip-feedback" role="status" aria-live="polite"></p>
+    <label>Label <input name="label"></label>
+    <button>Add</button>
+  </form>
+
+  <form method="post" action="{{ url_for('device_delete', device_id=device.id) }}" class="danger-zone">
+    {{ csrf() }}
+    <button class="danger">Delete this device</button>
+  </form>
+{% endif %}
+{% endblock %}

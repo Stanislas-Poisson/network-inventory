@@ -1,8 +1,8 @@
 # network-inventory
 
-A home network inventory that is the source of truth: a list of devices by type, category, IP and name, compared with what is really on the network, and exported to configure a router again without searching everything.
+A home network inventory that is the source of truth: a list of devices by group, type, IP and name, compared with what is really on the network, and exported to configure a router again without searching everything.
 
-> **Status: design.** Nothing is coded yet. The architecture below is a proposal.
+> **Status: first version in progress.** The inventory, the scan, the web interface, the Wi-Fi QR codes and the exports work. The installation on a Raspberry Pi is documented but not tested yet.
 
 ## The idea
 
@@ -14,15 +14,26 @@ A home network inventory that is the source of truth: a list of devices by type,
 
 | Part | Role |
 | :--- | :--- |
-| Inventory | One SQLite file, the source of truth, edited from the web interface. A device has a name, a type, a category, one group and a list of interfaces (MAC, expected IP). A group is a name and an IP range. |
+| Inventory | One SQLite file, the source of truth, edited from the web interface. A device has a name, a type, one group and a list of interfaces (MAC, expected IP). A group is a name and an IP range. |
 | Scanner | Python script (`arp-scan` or `nmap -sn`), history of the observations in SQLite. |
 | Comparator | Classifies each device: matching, different IP, unknown MAC, missing. |
-| Web interface | Light Flask application with forms: views by type, category, IP, name and group, edition of devices and groups, and a page of the differences. Password protected, local network only. |
+| Web interface | Light Flask application with forms: views by group, type, IP and name, edition of devices and groups, and a page of the differences. Password protected, local network only. |
 | Free range | A group can be marked as free: the range new devices get an address from. A new device is listed so you can give it its place. |
 | Wi-Fi | Wi-Fi networks (SSID, key, security) and, on demand, a QR code to join one. The QR code is generated on the server, never by an external service. |
 | Export | A table (MAC, IP, name, group) to enter in the router, a full JSON backup (the Wi-Fi keys are included, so keep the file encrypted), then an optional automatic push. |
 
 It is meant to run on a Raspberry Pi 3, with no database server and no Docker (Docker is optional).
+
+## Usage
+
+```bash
+make install
+.venv/bin/python -m network_inventory set-password
+.venv/bin/python -m network_inventory serve
+```
+
+Other commands: `scan`, `diff`, `export --format table|csv|markdown|json`, `import FILE`.
+The installation on a Raspberry Pi is in [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Requirements
 

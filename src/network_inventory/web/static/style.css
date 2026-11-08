@@ -1,0 +1,117 @@
+:root {
+  --bg: #fafafa;
+  --surface: #fff;
+  --text: #1c1f24;
+  --muted: #5f6672;
+  --line: #dde1e6;
+  --accent: #1f6feb;
+  --accent-text: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c;
+    --surface: #1c2027;
+    --text: #e6e9ee;
+    --muted: #9aa3b0;
+    --line: #2c323b;
+    --accent: #5b9bff;
+    --accent-text: #0b1220;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, sans-serif;
+}
+
+main, .bar { max-width: 72rem; margin: 0 auto; padding: 0 1rem; }
+.bar { padding-top: 1rem; padding-bottom: 1rem; }
+.brand { font-weight: 600; color: var(--text); text-decoration: none; }
+
+h1 { font-size: 1.5rem; margin: 1rem 0; }
+h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+h2 small { color: var(--muted); font-weight: 400; margin-left: 0.5rem; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.tabs a {
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--surface);
+}
+.tabs a[aria-current="page"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+table { width: 100%; border-collapse: collapse; background: var(--surface); }
+th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 0.875rem; }
+.mono { font-family: ui-monospace, monospace; font-size: 0.875rem; }
+.empty { color: var(--muted); }
+
+/* Narrow screens: each device becomes a card. */
+@media (max-width: 40rem) {
+  table.devices thead { display: none; }
+  table.devices, table.devices tbody, table.devices tr, table.devices td { display: block; width: 100%; }
+  table.devices tr {
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.25rem 0;
+  }
+  table.devices td { border: 0; padding: 0.25rem 0.75rem; }
+  table.devices td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+}
+
+/* Forms and messages */
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: baseline; }
+.links { display: flex; gap: 1rem; }
+a { color: var(--accent); }
+.brand { color: var(--text); }
+.flash { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 0.5rem 0.75rem; border-radius: 0.25rem; }
+.error { background: var(--surface); border: 1px solid #d1242f; border-left: 4px solid #d1242f; padding: 0.5rem 0.75rem; border-radius: 0.25rem; }
+.hint { color: var(--muted); margin: 0; font-size: 0.875rem; }
+
+label { display: grid; gap: 0.25rem; font-size: 0.875rem; color: var(--muted); }
+input, select, textarea {
+  font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 0.375rem; padding: 0.5rem 0.625rem; width: 100%; min-height: 2.5rem;
+}
+label.check { display: flex; align-items: center; gap: 0.5rem; }
+label.check input { width: auto; min-height: 0; }
+button, .button {
+  font: inherit; cursor: pointer; text-decoration: none; display: inline-block;
+  background: var(--accent); color: var(--accent-text); border: 0; border-radius: 0.375rem;
+  padding: 0.5rem 1rem; min-height: 2.5rem;
+}
+button.danger { background: transparent; color: #d1242f; border: 1px solid #d1242f; }
+.stack { display: grid; gap: 0.75rem; max-width: 32rem; }
+.row { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); align-items: end; margin-bottom: 1rem; }
+.actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.actions form { margin: 0; }
+.danger-zone { margin: 2rem 0; }
+
+form.inline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0; }
+form.inline select, form.inline input { width: auto; min-width: 8rem; }
+
+.qr { display: block; width: min(100%, 22rem); height: auto; background: #fff; padding: 0.5rem; border-radius: 0.5rem; }
+.key { font-size: 1.25rem; word-break: break-all; }
+
+.range { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.prefixed { display: flex; align-items: center; gap: 0.25rem; }
+.prefixed input { flex: 1; min-width: 0; }
+.prefix { font-family: ui-monospace, monospace; color: var(--text); white-space: nowrap; }

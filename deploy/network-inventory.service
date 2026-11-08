@@ -1,0 +1,23 @@
+# User service: copy to ~/.config/systemd/user/ then
+#   systemctl --user daemon-reload && systemctl --user enable --now network-inventory
+# Keep it running without a login session: loginctl enable-linger "$USER"
+[Unit]
+Description=Network inventory web interface
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# NETWORK_INVENTORY_HOST (the LAN address of the Pi) and NETWORK_INVENTORY_DB go in this file.
+EnvironmentFile=%h/.config/network-inventory/env
+ExecStart=%h/network-inventory/.venv/bin/python -m network_inventory serve --host ${NETWORK_INVENTORY_HOST} --port 8080
+Restart=on-failure
+RestartSec=5
+# Not NoNewPrivileges: it would stop arp-scan from using its file capability.
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+# The database and its files (key, password hash) live here.
+ReadWritePaths=%h/.local/share/network-inventory
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Export</h1>
+
+<h2>Router table</h2>
+<p>One row per network card (MAC, IP, name, group), to enter the settings in the router again.</p>
+<p class="actions">
+  <a class="button" href="{{ url_for('export_csv') }}">CSV</a>
+  <a class="button" href="{{ url_for('export_markdown') }}">Markdown</a>
+</p>
+
+<h2>Backup</h2>
+<p>The whole inventory as JSON, to import into a new database with <code>network-inventory import</code>.
+The default file contains the Wi-Fi keys in clear: store it encrypted.</p>
+<p class="actions">
+  <a class="button" href="{{ url_for('export_backup') }}">Backup with the Wi-Fi keys</a>
+  <a href="{{ url_for('export_backup', keys=0) }}">Backup without the keys</a>
+</p>
+{% endblock %}

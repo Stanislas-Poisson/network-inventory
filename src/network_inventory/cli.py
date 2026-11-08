@@ -1,8 +1,12 @@
 import argparse
+import getpass
+import json
 import sys
 
-from network_inventory import db, inventory, scanner
+from network_inventory import db, export, inventory, scanner
 from network_inventory.compare import Finding, Status, compare
+from network_inventory.web import auth
+from network_inventory.web.app import create_app
 
 _LABELS = {
     Status.MATCHING: "ok",
@@ -20,7 +24,17 @@ def build_parser() -> argparse.ArgumentParser:
     scan = sub.add_parser("scan", help="scan the local network and store what is seen")
     scan.add_argument("--interface", help="network interface to scan")
     sub.add_parser("diff", help="compare the last scan with the inventory")
-    sub.add_parser("export", help="print a table of MAC, IP, name and group")
+    export = sub.add_parser("export", help="print the router table or the JSON backup")
+    export.add_argument("--format", choices=["table", "csv", "markdown", "json"], default="table")
+    export.add_argument(
+        "--no-wifi-keys", action="store_true", help="leave the Wi-Fi keys out of the JSON backup"
+    )
+    restore = sub.add_parser("import", help="import a JSON backup into an empty database")
+    restore.add_argument("file", help="path of the backup file")
+    sub.add_parser("set-password", help="set the password of the web interface")
+    serve = sub.add_parser("serve", help="start the web interface")
+    serve.add_argument("--host", default="127.0.0.1", help="address to listen on")
+    serve.add_argument("--port", type=int, default=8080)
     return parser
 
 
@@ -63,25 +77,69 @@ def cmd_diff(_args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_export(_args: argparse.Namespace) -> int:
+def cmd_export(args: argparse.Namespace) -> int:
     conn = db.connect(db.db_path())
-    groups = {g.id: g.name for g in inventory.list_groups(conn)}
-    rows = [
-        (i.mac, i.expected_ip or "", d.name, groups[d.group_id])
-        for d in inventory.list_devices(conn)
-        for i in d.interfaces
-    ]
-    rows.sort(key=lambda r: (int(inventory.parse_ip(r[1])) if r[1] else 2**32, r[0]))
-    print("\t".join(("MAC", "IP", "NAME", "GROUP")))
-    for row in rows:
-        print("\t".join(row))
+    if args.format == "json":
+        sys.stdout.write(export.to_json(export.backup(conn, not args.no_wifi_keys)))
+        return 0
+    rows = export.router_rows(conn)
+    render = {"table": export.to_text, "csv": export.to_csv, "markdown": export.to_markdown}
+    sys.stdout.write(render[args.format](rows))
+    return 0
+
+
+def cmd_import(args: argparse.Namespace) -> int:
+    try:
+        with open(args.file, encoding="utf-8") as handle:
+            data = json.load(handle)
+        export.restore(db.connect(db.db_path()), data)
+    except (OSError, json.JSONDecodeError, KeyError, inventory.ValidationError) as error:
+        print(f"Import failed: {error}", file=sys.stderr)
+        return 1
+    print("Backup imported.")
+    return 0
+
+
+def cmd_set_password(_args: argparse.Namespace) -> int:
+    password = getpass.getpass("New password: ")
+    if password != getpass.getpass("Repeat the password: "):
+        print("The passwords differ.", file=sys.stderr)
+        return 1
+    try:
+        auth.set_password(db.db_path(), password)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    print(f"Password saved. The user name is {auth.USERNAME!r}.")
+    return 0
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    path = db.db_path()
+    if auth.load_hash(path) is None:
+        if not auth.is_loopback(args.host):
+            print(
+                "Refusing to listen on a network address without a password: "
+                "run `network-inventory set-password` first.",
+                file=sys.stderr,
+            )
+            return 1
+        print("Warning: no password set, open to this machine only.", file=sys.stderr)
+    create_app(path).run(host=args.host, port=args.port)
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    commands = {"scan": cmd_scan, "diff": cmd_diff, "export": cmd_export}
+    commands = {
+        "scan": cmd_scan,
+        "diff": cmd_diff,
+        "export": cmd_export,
+        "import": cmd_import,
+        "serve": cmd_serve,
+        "set-password": cmd_set_password,
+    }
     if args.command is None:
         parser.print_help()
         return 0

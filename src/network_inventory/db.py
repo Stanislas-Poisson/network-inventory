@@ -38,8 +38,25 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    backup_before_upgrade(conn, path)
     migrate(conn)
     return conn
+
+
+def backup_before_upgrade(conn: sqlite3.Connection, path: str | Path) -> Path | None:
+    """Copy a database that holds data before a migration changes it. Returns the copy."""
+    current = schema_version(conn)
+    latest = package_migrations()[-1][0]
+    if str(path) == ":memory:" or current == 0 or current >= latest:
+        return None
+    copy = Path(f"{path}.backup-v{current}")
+    # The online backup API gives a consistent copy even if the file is open elsewhere.
+    target = sqlite3.connect(copy)
+    with target:
+        conn.backup(target)
+    target.close()
+    copy.chmod(0o600)
+    return copy
 
 
 def schema_version(conn: sqlite3.Connection) -> int:

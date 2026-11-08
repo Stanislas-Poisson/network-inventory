@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, wifi_fields %}
+{% block content %}
+<h1>{{ network.ssid }}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post" class="stack">
+  {{ csrf() }}
+  {{ wifi_fields(form, securities, "Leave empty to keep the current key") }}
+  <button>Save</button>
+  <a href="{{ url_for('wifi_list') }}">Back</a>
+</form>
+
+<h2>Key</h2>
+{% if network.security == "nopass" %}
+  <p class="empty">Open network, no key.</p>
+{% elif reveal %}
+  <p class="mono key">{{ network.password }}</p>
+  <p><a href="{{ url_for('wifi_edit', network_id=network.id) }}">Hide the key</a></p>
+{% else %}
+  <p><a href="{{ url_for('wifi_edit', network_id=network.id, reveal=1) }}">Show the key</a></p>
+{% endif %}
+
+<p><a class="button" href="{{ url_for('wifi_qr_page', network_id=network.id) }}">QR code</a></p>
+
+<form method="post" action="{{ url_for('wifi_delete', network_id=network.id) }}" class="danger-zone">
+  {{ csrf() }}
+  <button class="danger">Delete this network</button>
+</form>
+{% endblock %}

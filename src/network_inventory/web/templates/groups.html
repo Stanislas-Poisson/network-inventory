@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, group_fields %}
+{% block content %}
+<h1>Groups</h1>
+
+<table class="devices">
+  <thead><tr><th>Name</th><th>Ranges</th><th>Free</th><th></th></tr></thead>
+  <tbody>
+    {% for group in groups %}
+      <tr>
+        <td data-label="Name"><a href="{{ url_for('group_edit', group_id=group.id) }}">{{ group.name }}</a></td>
+        <td data-label="Ranges">{{ group.describe() }}</td>
+        <td data-label="Free">{{ "yes" if group.is_free else "no" }}</td>
+        <td class="actions">
+          <a href="{{ url_for('device_new', group=group.id) }}">Add a device</a>
+          <form method="post" action="{{ url_for('group_delete', group_id=group.id) }}">
+            {{ csrf() }}<button class="danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="empty">No group yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Network</h2>
+<form method="post" action="{{ url_for('network_save') }}" class="inline">
+  {{ csrf() }}
+  <label>First three numbers
+    <input name="prefix" value="{{ prefix or '' }}" placeholder="192.168.1" inputmode="decimal" required>
+  </label>
+  <button>Save</button>
+  {% if prefix and not prefix_saved %}<span class="hint">Detected from the last scan: save it to keep it.</span>{% endif %}
+</form>
+
+<h2>New group</h2>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="{{ url_for('group_create') }}" class="stack">
+  {{ csrf() }}
+  {{ group_fields(form, prefix) }}
+  <button>Create the group</button>
+</form>
+{% endblock %}

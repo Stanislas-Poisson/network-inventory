@@ -1,0 +1,38 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro group_fields(form, prefix) %}
+  <label>Name <input name="name" value="{{ form.get('name', '') }}" required></label>
+  {# The ranges already set, then one empty row to add another. #}
+  {% set rows = (form.get('rows') or []) + [("", "")] %}
+  {% for first, last in rows %}
+    {% if prefix %}
+      <div class="range">
+        <label>First <span class="prefixed"><span class="prefix">{{ prefix }}.</span>
+          <input name="first_octet" value="{{ first }}" inputmode="numeric" min="1" max="254"{% if loop.first %} required{% endif %}></span></label>
+        <label>Last <span class="prefixed"><span class="prefix">{{ prefix }}.</span>
+          <input name="last_octet" value="{{ last }}" inputmode="numeric" min="1" max="254"{% if loop.first %} required{% endif %}></span></label>
+      </div>
+    {% else %}
+      <div class="range">
+        <label>First IP <input name="first_ip" value="{{ first }}" inputmode="decimal"{% if loop.first %} required{% endif %}></label>
+        <label>Last IP <input name="last_ip" value="{{ last }}" inputmode="decimal"{% if loop.first %} required{% endif %}></label>
+      </div>
+    {% endif %}
+  {% endfor %}
+  <p class="hint">Leave the last row empty to keep one range. Fill it to add another range, then save again for a new empty row.</p>
+  <label class="check"><input type="checkbox" name="is_free"{% if form.get('is_free') %} checked{% endif %}> Free range (new devices get an address here)</label>
+{% endmacro %}
+
+{% macro wifi_fields(form, securities, password_hint="") %}
+  <label>Network name (SSID) <input name="ssid" value="{{ form.get('ssid', '') }}" maxlength="32" required></label>
+  <label>Security
+    <select name="security">
+      {% for key, label in securities.items() %}
+        <option value="{{ key }}"{% if key == form.get('security') %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Key <input type="password" name="password" autocomplete="new-password" placeholder="{{ password_hint }}"></label>
+  <label class="check"><input type="checkbox" name="hidden"{% if form.get('hidden') %} checked{% endif %}> Hidden network</label>
+  <label>Notes <textarea name="notes" rows="2">{{ form.get('notes', '') }}</textarea></label>
+{% endmacro %}

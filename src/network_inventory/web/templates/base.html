@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Network inventory{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="{{ url_for('index') }}">Network inventory</a>
+    <nav class="links">
+      <a href="{{ url_for('index') }}">Devices</a>
+      <a href="{{ url_for('groups') }}">Groups</a>
+      <a href="{{ url_for('differences') }}">Differences</a>
+      <a href="{{ url_for('wifi_list') }}">Wi-Fi</a>
+      <a href="{{ url_for('export_page') }}">Export</a>
+    </nav>
+  </header>
+  <main>
+    {% for message in get_flashed_messages() %}
+      <p class="flash" role="status">{{ message }}</p>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
