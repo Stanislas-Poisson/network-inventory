@@ -104,3 +104,6 @@ button.danger { background: transparent; color: #d1242f; border: 1px solid #d124
 .actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .actions form { margin: 0; }
 .danger-zone { margin: 2rem 0; }
+
+form.inline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0; }
+form.inline select, form.inline input { width: auto; min-width: 8rem; }
