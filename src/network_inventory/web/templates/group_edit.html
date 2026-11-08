@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, group_fields %}
+{% block content %}
+<h1>Group {{ group.name }}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" class="stack">
+  {{ csrf() }}
+  {{ group_fields(form) }}
+  <button>Save</button>
+  <a href="{{ url_for('groups') }}">Back</a>
+</form>
+{% endblock %}

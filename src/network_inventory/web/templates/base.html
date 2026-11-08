@@ -9,8 +9,15 @@
 <body>
   <header class="bar">
     <a class="brand" href="{{ url_for('index') }}">Network inventory</a>
+    <nav class="links">
+      <a href="{{ url_for('index') }}">Devices</a>
+      <a href="{{ url_for('groups') }}">Groups</a>
+    </nav>
   </header>
   <main>
+    {% for message in get_flashed_messages() %}
+      <p class="flash" role="status">{{ message }}</p>
+    {% endfor %}
     {% block content %}{% endblock %}
   </main>
 </body>
