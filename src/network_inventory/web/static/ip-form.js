@@ -90,5 +90,22 @@
     validate();
   }
 
-  document.querySelectorAll("form[data-ip-form]").forEach(setup);
+  // The menu of connected devices fills the MAC field.
+  function setupConnected(form) {
+    var box = form.querySelector("[data-connected]");
+    var mac = form.querySelector("input[name=mac]");
+    if (!box || !mac) return;
+    box.hidden = false;
+    box.querySelector("select").addEventListener("change", function (event) {
+      if (!event.target.value) return;
+      mac.value = event.target.value;
+      var name = form.querySelector("input[name=name]");
+      if (name && name.value === "") name.focus();
+    });
+  }
+
+  document.querySelectorAll("form[data-ip-form]").forEach(function (form) {
+    setup(form);
+    setupConnected(form);
+  });
 })();

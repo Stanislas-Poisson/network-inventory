@@ -244,3 +244,34 @@ def test_the_ip_script_data_is_valid_json_even_with_quotes_in_names(setup):
     data = json.loads(html.unescape(raw))
     assert data["used"] == {"192.0.2.10": "O'Neil <b>"}
     assert data["groups"][0]["name"] == 'PC\'s "main"'
+
+
+def test_connected_menu_lists_only_the_devices_the_inventory_does_not_know(setup):
+    from network_inventory import scanner
+
+    client, path = setup
+    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    inventory.create_device(conn_of(path), "A", group, [("aa:bb:cc:00:00:01", "192.0.2.10")])
+    scan = scanner.parse_arp_scan(
+        "192.0.2.10\taa:bb:cc:00:00:01\tKnown Vendor\n192.0.2.150\tde:ad:be:ef:00:01\tNew Vendor\n"
+    )
+    scanner.store_observations(conn_of(path), scan, "2026-01-01T10:00:00Z")
+    page = client.get("/devices/new").get_data(as_text=True)
+    assert "data-connected" in page
+    assert 'value="de:ad:be:ef:00:01"' in page and "New Vendor" in page
+    assert "Known Vendor" not in page
+
+
+def test_no_connected_menu_without_a_scan(setup):
+    client, _ = setup
+    assert "data-connected" not in client.get("/devices/new").get_data(as_text=True)
+
+
+def test_connected_menu_escapes_the_vendor(setup):
+    from network_inventory import scanner
+
+    client, path = setup
+    scan = scanner.parse_arp_scan("192.0.2.150\tde:ad:be:ef:00:01\t<script>x</script>\n")
+    scanner.store_observations(conn_of(path), scan, "2026-01-01T10:00:00Z")
+    page = client.get("/devices/new").get_data(as_text=True)
+    assert "<script>x</script>" not in page

@@ -250,9 +250,13 @@ def register_edit_routes(app: Flask, get_conn) -> None:
             "used": used,
             "group": device.group_id if device else None,
         }
+        known = {i.mac for d in inventory.list_devices(conn) for i in d.interfaces}
+        # What the last scan saw and the inventory does not know yet.
+        connected = [o for o in scanner.latest_scan(conn) if o.mac not in known]
         return (
             render_template(
                 "device_form.html",
+                connected=connected,
                 ip_data=ip_data,
                 device=device,
                 groups=groups_,

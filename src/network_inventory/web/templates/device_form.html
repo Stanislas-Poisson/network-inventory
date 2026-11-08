@@ -23,6 +23,19 @@
   <datalist id="device-types">{% for t in types %}<option value="{{ t }}">{% endfor %}</datalist>
   <label>Notes <textarea name="notes" rows="3">{{ form.get('notes', '') }}</textarea></label>
   {% if not device %}
+    {% if connected %}
+      {# Shown by the script: without it the menu would do nothing. #}
+      <div hidden data-connected>
+        <label>Fill from a connected device
+          <select aria-label="Connected devices not in the inventory">
+            <option value="">Choose a device seen by the last scan</option>
+            {% for o in connected %}
+              <option value="{{ o.mac }}">{{ o.ip }} - {{ o.mac }} - {{ o.vendor or "unknown" }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+    {% endif %}
     <label>MAC <input name="mac" value="{{ form.get('mac', '') }}" placeholder="aa:bb:cc:00:11:22" class="mono"></label>
     <label>IP <input name="ip" value="{{ form.get('ip', '') or suggestion or '' }}" inputmode="decimal"></label>
     <p class="hint ip-feedback" role="status" aria-live="polite"></p>
