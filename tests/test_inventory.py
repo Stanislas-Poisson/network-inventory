@@ -103,3 +103,15 @@ def test_deleting_a_device_deletes_its_interfaces(conn, pc_group):
     device_id = inventory.create_device(conn, "A", pc_group, [("aa:bb:cc:00:11:22", None)])
     inventory.delete_device(conn, device_id)
     assert conn.execute("SELECT COUNT(*) FROM interfaces").fetchone()[0] == 0
+
+
+def test_next_free_ip_skips_used_addresses(conn, pc_group):
+    inventory.create_device(conn, "A", pc_group, [("aa:bb:cc:00:11:22", "192.0.2.10")])
+    inventory.create_device(conn, "B", pc_group, [("aa:bb:cc:00:11:23", "192.0.2.12")])
+    assert inventory.next_free_ip(conn, pc_group) == "192.0.2.11"
+
+
+def test_next_free_ip_is_none_when_the_group_is_full(conn):
+    group = inventory.create_group(conn, "Tiny", "192.0.2.50", "192.0.2.50")
+    inventory.create_device(conn, "A", group, [("aa:bb:cc:00:11:22", "192.0.2.50")])
+    assert inventory.next_free_ip(conn, group) is None

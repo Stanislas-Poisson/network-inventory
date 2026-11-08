@@ -326,3 +326,21 @@ def update_interface(
 def delete_interface(conn: sqlite3.Connection, interface_id: int) -> None:
     with conn:
         conn.execute("DELETE FROM interfaces WHERE id = ?", (interface_id,))
+
+
+# ---------------------------------------------------------------- allocation
+
+
+def next_free_ip(conn: sqlite3.Connection, group_id: int) -> str | None:
+    """The first IP of the group that no interface expects, or None when it is full."""
+    group = get_group(conn, group_id)
+    used = {
+        row["expected_ip"]
+        for row in conn.execute("SELECT expected_ip FROM interfaces WHERE expected_ip IS NOT NULL")
+    }
+    low, high = int(parse_ip(group.first_ip)), int(parse_ip(group.last_ip))
+    for value in range(low, high + 1):
+        candidate = str(ipaddress.IPv4Address(value))
+        if candidate not in used:
+            return candidate
+    return None
