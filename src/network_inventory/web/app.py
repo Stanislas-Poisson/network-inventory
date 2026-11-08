@@ -8,7 +8,8 @@ from pathlib import Path
 
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 
-from network_inventory import db, inventory
+from network_inventory import db, inventory, scanner
+from network_inventory.compare import Status, compare
 from network_inventory.inventory import ValidationError
 
 # How the device list can be organised: key -> label.
@@ -75,6 +76,7 @@ def create_app(db_path: str | Path | None = None) -> Flask:
         return render_template("index.html", sections=sections, view=view, views=VIEWS)
 
     register_edit_routes(app, get_conn)
+    register_difference_routes(app, get_conn)
     return app
 
 
@@ -170,7 +172,11 @@ def register_edit_routes(app: Flask, get_conn) -> None:
 
     @app.route("/devices/new", methods=["GET", "POST"])
     def device_new():
-        form = {"group_id": request.args.get("group", "")}
+        form = {
+            "group_id": request.args.get("group", ""),
+            "mac": request.args.get("mac", ""),
+            "ip": request.args.get("ip", ""),
+        }
         if request.method == "POST":
             form = {k: _field(k) for k in ("name", "type", "category", "notes", "mac", "ip")}
             form["group_id"] = _field("group_id")
@@ -273,6 +279,59 @@ def register_edit_routes(app: Flask, get_conn) -> None:
         inventory.delete_interface(conn, interface_id)
         flash("Interface deleted.")
         return redirect(url_for("device_edit", device_id=row["device_id"]))
+
+
+STATUS_LABELS = {
+    Status.UNKNOWN_MAC: "Unknown MAC",
+    Status.NEW_DEVICE: "New devices",
+    Status.IP_OUTSIDE_GROUP: "IP outside the group",
+    Status.IP_CHANGED: "IP changed",
+    Status.MISSING: "Missing",
+    Status.MATCHING: "Matching",
+}
+
+
+def register_difference_routes(app: Flask, get_conn) -> None:
+    @app.get("/differences")
+    def differences():
+        conn = get_conn()
+        observations = scanner.latest_scan(conn)
+        devices = inventory.list_devices(conn)
+        findings = compare(devices, inventory.list_groups(conn), observations)
+        sections = []
+        for status, label in STATUS_LABELS.items():
+            matching = [f for f in findings if f.status == status]
+            sections.append({"status": status, "title": label, "findings": matching})
+        return render_template(
+            "differences.html",
+            sections=[sec for sec in sections if sec["findings"]],
+            has_scan=bool(observations),
+            scanned_at=observations[0].last_seen if observations else "",
+            devices=devices,
+            matching=Status.MATCHING,
+        )
+
+    @app.post("/scan")
+    def scan():
+        try:
+            observations = scanner.parse_arp_scan(scanner.run_arp_scan())
+        except scanner.ScanError as error:
+            flash(f"Scan failed: {error}")
+        else:
+            scanner.store_observations(get_conn(), observations)
+            flash(f"{len(observations)} device(s) seen.")
+        return redirect(url_for("differences"))
+
+    @app.post("/differences/attach")
+    def attach():
+        try:
+            device_id = int(_field("device_id") or 0)
+            inventory.add_interface(get_conn(), device_id, _field("mac"), _field("ip"))
+        except (ValidationError, ValueError) as error:
+            flash(str(error) if isinstance(error, ValidationError) else "Choose a device.")
+            return redirect(url_for("differences"))
+        flash("Network card attached.")
+        return redirect(url_for("device_edit", device_id=device_id))
 
 
 def _first_ip(device: inventory.Device) -> int:

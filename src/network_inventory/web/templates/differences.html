@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block content %}
+<h1>Differences</h1>
+
+<form method="post" action="{{ url_for('scan') }}" class="inline">
+  {{ csrf() }}
+  <button>Scan the network now</button>
+  {% if has_scan %}<span class="hint">Last scan: {{ scanned_at }} (UTC)</span>{% endif %}
+</form>
+
+{% if not has_scan %}
+  <p class="empty">No scan yet.</p>
+{% endif %}
+
+{% for section in sections %}
+  <section>
+    <h2>{{ section.title }} <small>{{ section.findings|length }}</small></h2>
+    <table class="devices">
+      <thead><tr><th>Device</th><th>MAC</th><th>Expected IP</th><th>Seen IP</th><th></th></tr></thead>
+      <tbody>
+        {% for f in section.findings %}
+          <tr>
+            <td data-label="Device">
+              {% if f.device %}<a href="{{ url_for('device_edit', device_id=f.device.id) }}">{{ f.device.name }}</a>
+              {% else %}{{ f.observation.vendor or "-" }}{% endif %}
+            </td>
+            <td data-label="MAC" class="mono">{{ (f.interface or f.observation).mac }}</td>
+            <td data-label="Expected IP">{{ f.interface.expected_ip or "-" if f.interface else "-" }}</td>
+            <td data-label="Seen IP">{{ f.observation.ip if f.observation else "-" }}</td>
+            <td class="actions">
+              {% if f.device is none and f.observation %}
+                <form method="post" action="{{ url_for('attach') }}" class="inline">
+                  {{ csrf() }}
+                  <input type="hidden" name="mac" value="{{ f.observation.mac }}">
+                  <select name="device_id" aria-label="Attach to a device" required>
+                    <option value="">Attach to...</option>
+                    {% for d in f.candidates %}<option value="{{ d.id }}">{{ d.name }} (absent)</option>{% endfor %}
+                    {% for d in devices if d not in f.candidates %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+                  </select>
+                  <input name="ip" placeholder="Expected IP" inputmode="decimal" aria-label="Expected IP">
+                  <button>Attach</button>
+                </form>
+                <a href="{{ url_for('device_new', mac=f.observation.mac, ip=f.observation.ip) }}">Create a device</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endfor %}
+{% endblock %}
