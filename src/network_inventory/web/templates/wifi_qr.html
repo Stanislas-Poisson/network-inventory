@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ network.ssid }}</h1>
+<p class="hint">Point a phone camera at the code to join the network.</p>
+<img class="qr" src="{{ url_for('wifi_qr', network_id=network.id) }}" alt="QR code to join the Wi-Fi network {{ network.ssid }}">
+<p><a href="{{ url_for('wifi_edit', network_id=network.id) }}">Back</a></p>
+{% endblock %}

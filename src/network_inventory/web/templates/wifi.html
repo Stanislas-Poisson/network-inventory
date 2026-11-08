@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, wifi_fields %}
+{% block content %}
+<h1>Wi-Fi networks</h1>
+
+<table class="devices">
+  <thead><tr><th>Name</th><th>Security</th><th>Hidden</th><th></th></tr></thead>
+  <tbody>
+    {% for n in networks %}
+      <tr>
+        <td data-label="Name"><a href="{{ url_for('wifi_edit', network_id=n.id) }}">{{ n.ssid }}</a></td>
+        <td data-label="Security">{{ securities[n.security] }}</td>
+        <td data-label="Hidden">{{ "yes" if n.hidden else "no" }}</td>
+        <td class="actions"><a class="button" href="{{ url_for('wifi_qr_page', network_id=n.id) }}">QR code</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="empty">No Wi-Fi network yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>New Wi-Fi network</h2>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="{{ url_for('wifi_create') }}" class="stack">
+  {{ csrf() }}
+  {{ wifi_fields(form, securities) }}
+  <button>Create</button>
+</form>
+{% endblock %}
