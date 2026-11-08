@@ -6,3 +6,8 @@
 # The real inventory and the scan history stay out of the repository
 inventory.yaml
 *.db
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
