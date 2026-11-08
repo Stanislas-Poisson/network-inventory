@@ -8,9 +8,9 @@ from network_inventory.scanner import Observation
 @pytest.fixture
 def world():
     conn = db.connect(":memory:")
-    pc = inventory.create_group(conn, "PC", "192.0.2.10", "192.0.2.19")
-    iot = inventory.create_group(conn, "IoT", "192.0.2.40", "192.0.2.49")
-    free = inventory.create_group(conn, "Free", "192.0.2.100", "192.0.2.199", is_free=True)
+    pc = inventory.create_group(conn, "PC", [("192.0.2.10", "192.0.2.19")])
+    iot = inventory.create_group(conn, "IoT", [("192.0.2.40", "192.0.2.49")])
+    free = inventory.create_group(conn, "Free", [("192.0.2.100", "192.0.2.199")], is_free=True)
     inventory.create_device(conn, "Desktop", pc, [("aa:bb:cc:00:00:01", "192.0.2.10")])
     inventory.create_device(conn, "Lamp", iot, [("aa:bb:cc:00:00:02", "192.0.2.41")])
     inventory.create_device(conn, "Sensor", iot, [("aa:bb:cc:00:00:03", "192.0.2.42")])

@@ -6,7 +6,7 @@ Pure function: no network, no database, no web. Callers pass what they loaded.
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from network_inventory.inventory import Device, Group, Interface, parse_ip
+from network_inventory.inventory import Device, Group, Interface
 from network_inventory.scanner import Observation
 
 
@@ -30,7 +30,7 @@ class Finding:
 
 
 def _in_group(group: Group | None, ip: str) -> bool:
-    return group is not None and parse_ip(group.first_ip) <= parse_ip(ip) <= parse_ip(group.last_ip)
+    return group is not None and group.contains(ip)
 
 
 def _group_of(groups: dict[int, Group], ip: str) -> Group | None:

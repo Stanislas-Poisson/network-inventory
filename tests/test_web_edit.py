@@ -59,7 +59,7 @@ def test_create_edit_and_delete_a_group(setup):
     )
     assert response.status_code == 302
     saved = inventory.get_group(conn_of(path), group.id)
-    assert (saved.name, saved.last_ip, saved.is_free) == ("PCs", "192.0.2.29", True)
+    assert (saved.name, saved.ranges[0].last_ip, saved.is_free) == ("PCs", "192.0.2.29", True)
     post(client, f"/groups/{group.id}/delete")
     assert inventory.list_groups(conn_of(path)) == []
 
@@ -83,7 +83,7 @@ def test_error_messages_are_escaped(setup):
 
 def test_new_device_form_suggests_the_first_free_ip(setup):
     client, path = setup
-    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn_of(path), "PC", [("192.0.2.10", "192.0.2.19")])
     inventory.create_device(conn_of(path), "A", group, [("aa:bb:cc:00:00:01", "192.0.2.10")])
     page = client.get(f"/devices/new?group={group}").get_data(as_text=True)
     assert "First free IP of this group: 192.0.2.11" in page
@@ -91,7 +91,7 @@ def test_new_device_form_suggests_the_first_free_ip(setup):
 
 def test_device_and_interfaces_lifecycle(setup):
     client, path = setup
-    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn_of(path), "PC", [("192.0.2.10", "192.0.2.19")])
     response = post(
         client,
         "/devices/new",
@@ -126,7 +126,7 @@ def test_device_and_interfaces_lifecycle(setup):
 
 def test_invalid_device_is_refused_with_a_message(setup):
     client, path = setup
-    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn_of(path), "PC", [("192.0.2.10", "192.0.2.19")])
     response = post(
         client,
         "/devices/new",
@@ -149,7 +149,7 @@ def test_unknown_ids_give_404(setup):
 
 def test_device_form_suggests_the_types_already_used(setup):
     client, path = setup
-    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn_of(path), "PC", [("192.0.2.10", "192.0.2.19")])
     inventory.create_device(conn_of(path), "A", group, type="laptop")
     page = client.get("/devices/new").get_data(as_text=True)
     assert '<option value="laptop">' in page
@@ -171,7 +171,7 @@ def test_group_is_created_from_the_two_numbers(setup):
     response = post(client, "/groups", name="PC", first_octet="10", last_octet="19")
     assert response.status_code == 302
     group = inventory.list_groups(conn_of(path))[0]
-    assert (group.first_ip, group.last_ip) == ("192.0.2.10", "192.0.2.19")
+    assert [(r.first_ip, r.last_ip) for r in group.ranges] == [("192.0.2.10", "192.0.2.19")]
 
 
 @pytest.mark.parametrize("first,last", [("0", "5"), ("5", "255"), ("x", "5"), ("20", "10")])
@@ -186,17 +186,17 @@ def test_bad_numbers_are_refused(setup, first, last):
 def test_group_edit_shows_the_numbers_and_saves_them(setup):
     client, path = setup
     post(client, "/settings/network", prefix="192.0.2")
-    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn_of(path), "PC", [("192.0.2.10", "192.0.2.19")])
     page = client.get(f"/groups/{group}").get_data(as_text=True)
     assert 'name="first_octet" value="10"' in page
     post(client, f"/groups/{group}", name="PC", first_octet="10", last_octet="29")
-    assert inventory.get_group(conn_of(path), group).last_ip == "192.0.2.29"
+    assert inventory.get_group(conn_of(path), group).ranges[0].last_ip == "192.0.2.29"
 
 
 def test_group_outside_the_network_keeps_the_full_ip_fields(setup):
     client, path = setup
     post(client, "/settings/network", prefix="192.0.2")
-    group = inventory.create_group(conn_of(path), "Other", "198.51.100.10", "198.51.100.19")
+    group = inventory.create_group(conn_of(path), "Other", [("198.51.100.10", "198.51.100.19")])
     page = client.get(f"/groups/{group}").get_data(as_text=True)
     assert 'name="first_ip"' in page and "first_octet" not in page
 
@@ -222,7 +222,7 @@ def test_network_is_detected_from_the_scan_of_this_machine(setup):
 
 def test_device_form_carries_the_data_for_the_ip_script(setup):
     client, path = setup
-    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn_of(path), "PC", [("192.0.2.10", "192.0.2.19")])
     inventory.create_device(conn_of(path), "A", group, [("aa:bb:cc:00:00:01", "192.0.2.10")])
     page = client.get("/devices/new").get_data(as_text=True)
     assert "data-ip-form=" in page and "ip-form.js" in page
@@ -235,7 +235,7 @@ def test_the_ip_script_data_is_valid_json_even_with_quotes_in_names(setup):
     import re
 
     client, path = setup
-    group = inventory.create_group(conn_of(path), 'PC\'s "main"', "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn_of(path), 'PC\'s "main"', [("192.0.2.10", "192.0.2.19")])
     inventory.create_device(
         conn_of(path), "O'Neil <b>", group, [("aa:bb:cc:00:00:01", "192.0.2.10")]
     )
@@ -250,7 +250,7 @@ def test_connected_menu_lists_only_the_devices_the_inventory_does_not_know(setup
     from network_inventory import scanner
 
     client, path = setup
-    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn_of(path), "PC", [("192.0.2.10", "192.0.2.19")])
     inventory.create_device(conn_of(path), "A", group, [("aa:bb:cc:00:00:01", "192.0.2.10")])
     scan = scanner.parse_arp_scan(
         "192.0.2.10\taa:bb:cc:00:00:01\tKnown Vendor\n192.0.2.150\tde:ad:be:ef:00:01\tNew Vendor\n"
@@ -275,3 +275,42 @@ def test_connected_menu_escapes_the_vendor(setup):
     scanner.store_observations(conn_of(path), scan, "2026-01-01T10:00:00Z")
     page = client.get("/devices/new").get_data(as_text=True)
     assert "<script>x</script>" not in page
+
+
+def test_a_group_can_be_created_and_edited_with_several_ranges(setup):
+    client, path = setup
+    post(client, "/settings/network", prefix="192.0.2")
+    response = client.post(
+        "/groups",
+        data={
+            "csrf_token": "token",
+            "name": "Infrastructure",
+            "first_octet": ["1", "254"],
+            "last_octet": ["9", "254"],
+        },
+    )
+    assert response.status_code == 302
+    group = inventory.list_groups(conn_of(path))[0]
+    assert group.describe() == "192.0.2.1 to 192.0.2.9, 192.0.2.254 to 192.0.2.254"
+    page = client.get(f"/groups/{group.id}").get_data(as_text=True)
+    assert page.count('name="first_octet"') == 3  # two ranges and one empty row
+
+
+def test_empty_rows_are_ignored_and_an_empty_group_is_refused(setup):
+    client, path = setup
+    post(client, "/settings/network", prefix="192.0.2")
+    client.post(
+        "/groups",
+        data={
+            "csrf_token": "token",
+            "name": "G",
+            "first_octet": ["5", ""],
+            "last_octet": ["9", ""],
+        },
+    )
+    assert inventory.list_groups(conn_of(path))[0].describe() == "192.0.2.5 to 192.0.2.9"
+    response = client.post(
+        "/groups",
+        data={"csrf_token": "token", "name": "H", "first_octet": [""], "last_octet": [""]},
+    )
+    assert response.status_code == 400 and "at least one range" in response.get_data(as_text=True)

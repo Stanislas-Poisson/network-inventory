@@ -54,7 +54,11 @@ def backup(conn: sqlite3.Connection, include_wifi_keys: bool = True) -> dict:
     return {
         "version": BACKUP_VERSION,
         "groups": [
-            {"name": g.name, "first_ip": g.first_ip, "last_ip": g.last_ip, "is_free": g.is_free}
+            {
+                "name": g.name,
+                "ranges": [{"first_ip": r.first_ip, "last_ip": r.last_ip} for r in g.ranges],
+                "is_free": g.is_free,
+            }
             for g in groups
         ],
         "devices": [
@@ -98,9 +102,13 @@ def _load(conn: sqlite3.Connection, data: dict) -> None:
         raise ValidationError(f"Unsupported backup version: {data.get('version')!r}.")
     ids = {}
     for g in data.get("groups", []):
-        ids[g["name"]] = inventory.create_group(
-            conn, g["name"], g["first_ip"], g["last_ip"], bool(g.get("is_free"))
+        # A backup made before groups had several ranges holds one first_ip and last_ip.
+        ranges = (
+            [(r["first_ip"], r["last_ip"]) for r in g["ranges"]]
+            if "ranges" in g
+            else [(g["first_ip"], g["last_ip"])]
         )
+        ids[g["name"]] = inventory.create_group(conn, g["name"], ranges, bool(g.get("is_free")))
     for d in data.get("devices", []):
         if d["group"] not in ids:
             raise ValidationError(f"The device {d['name']!r} uses an unknown group.")

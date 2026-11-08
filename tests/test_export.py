@@ -11,8 +11,8 @@ from network_inventory.web.app import create_app
 @pytest.fixture
 def conn():
     conn = db.connect(":memory:")
-    pc = inventory.create_group(conn, "PC", "192.0.2.10", "192.0.2.19")
-    free = inventory.create_group(conn, "Free", "192.0.2.100", "192.0.2.199", is_free=True)
+    pc = inventory.create_group(conn, "PC", [("192.0.2.10", "192.0.2.19")])
+    free = inventory.create_group(conn, "Free", [("192.0.2.100", "192.0.2.199")], is_free=True)
     device = inventory.create_device(
         conn,
         "Desk|top",
@@ -117,3 +117,25 @@ def test_web_downloads(tmp_path, conn):
         as_text=True
     )
     assert client.get("/export").status_code == 200
+
+
+def test_an_older_backup_with_one_range_per_group_still_imports():
+    data = {
+        "version": 1,
+        "groups": [{"name": "PC", "first_ip": "192.0.2.10", "last_ip": "192.0.2.19"}],
+        "devices": [],
+    }
+    fresh = db.connect(":memory:")
+    export.restore(fresh, data)
+    assert inventory.list_groups(fresh)[0].describe() == "192.0.2.10 to 192.0.2.19"
+
+
+def test_backup_keeps_every_range_of_a_group():
+    conn = db.connect(":memory:")
+    inventory.create_group(conn, "I", [("192.0.2.1", "192.0.2.9"), ("192.0.2.254", "192.0.2.254")])
+    fresh = db.connect(":memory:")
+    export.restore(fresh, export.backup(conn))
+    assert (
+        inventory.list_groups(fresh)[0].describe()
+        == "192.0.2.1 to 192.0.2.9, 192.0.2.254 to 192.0.2.254"
+    )

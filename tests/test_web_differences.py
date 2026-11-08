@@ -8,8 +8,8 @@ from network_inventory.web.app import create_app
 def setup(tmp_path):
     path = tmp_path / "diff.db"
     conn = db.connect(path)
-    pc = inventory.create_group(conn, "PC", "192.0.2.10", "192.0.2.19")
-    inventory.create_group(conn, "Free", "192.0.2.100", "192.0.2.199", is_free=True)
+    pc = inventory.create_group(conn, "PC", [("192.0.2.10", "192.0.2.19")])
+    inventory.create_group(conn, "Free", [("192.0.2.100", "192.0.2.199")], is_free=True)
     inventory.create_device(conn, "Desktop", pc, [("aa:bb:cc:00:00:01", "192.0.2.10")])
     inventory.create_device(conn, "Laptop", pc, [("aa:bb:cc:00:00:02", "192.0.2.11")])
     scan = scanner.parse_arp_scan(

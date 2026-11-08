@@ -4,13 +4,12 @@
 <h1>Groups</h1>
 
 <table class="devices">
-  <thead><tr><th>Name</th><th>First IP</th><th>Last IP</th><th>Free</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Ranges</th><th>Free</th><th></th></tr></thead>
   <tbody>
     {% for group in groups %}
       <tr>
         <td data-label="Name"><a href="{{ url_for('group_edit', group_id=group.id) }}">{{ group.name }}</a></td>
-        <td data-label="First IP">{{ group.first_ip }}</td>
-        <td data-label="Last IP">{{ group.last_ip }}</td>
+        <td data-label="Ranges">{{ group.describe() }}</td>
         <td data-label="Free">{{ "yes" if group.is_free else "no" }}</td>
         <td class="actions">
           <a href="{{ url_for('device_new', group=group.id) }}">Add a device</a>
@@ -20,7 +19,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="5" class="empty">No group yet.</td></tr>
+      <tr><td colspan="4" class="empty">No group yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

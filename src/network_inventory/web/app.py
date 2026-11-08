@@ -110,28 +110,29 @@ def network_prefix(conn) -> str | None:
 
 
 def group_values(prefix: str | None) -> dict:
-    """The group fields of the posted form, as full IPs (octets are added to the prefix)."""
+    """The group fields of the posted form: the name, the flag and the rows of ranges."""
     form = {"name": _field("name"), "is_free": "is_free" in request.form}
-    if "first_octet" in request.form and prefix:
-        form["first_octet"], form["last_octet"] = _field("first_octet"), _field("last_octet")
+    if prefix and "first_octet" in request.form:
+        form["mode"] = "octet"
+        firsts, lasts = request.form.getlist("first_octet"), request.form.getlist("last_octet")
     else:
-        form["first_ip"], form["last_ip"] = _field("first_ip"), _field("last_ip")
+        form["mode"] = "ip"
+        firsts, lasts = request.form.getlist("first_ip"), request.form.getlist("last_ip")
+    form["rows"] = [(a.strip(), b.strip()) for a, b in zip(firsts, lasts, strict=False)]
     return form
 
 
 def group_call_args(form: dict, prefix: str | None) -> dict:
     """The arguments of create_group and update_group for a posted form."""
-    if "first_octet" in form:
-        first = inventory.with_octet(prefix, form["first_octet"], "first")
-        last = inventory.with_octet(prefix, form["last_octet"], "last")
-    else:
-        first, last = form["first_ip"], form["last_ip"]
-    return {
-        "name": form["name"],
-        "first_ip": first,
-        "last_ip": last,
-        "is_free": form["is_free"],
-    }
+    ranges = []
+    for first, last in form["rows"]:
+        if not first and not last:
+            continue
+        if form["mode"] == "octet":
+            first = inventory.with_octet(prefix, first, "first")
+            last = inventory.with_octet(prefix, last, "last")
+        ranges.append((first, last))
+    return {"name": form["name"], "ranges": ranges, "is_free": form["is_free"]}
 
 
 def register_edit_routes(app: Flask, get_conn) -> None:
@@ -187,15 +188,16 @@ def register_edit_routes(app: Flask, get_conn) -> None:
         error, status = None, 200
         prefix = network_prefix(conn)
         # The octet inputs are only for a group that lives inside the network.
-        inside = prefix and all(
-            ip.startswith(prefix + ".") for ip in (group.first_ip, group.last_ip)
+        inside = bool(prefix) and all(
+            ip.startswith(prefix + ".") for r in group.ranges for ip in (r.first_ip, r.last_ip)
         )
-        form = {"name": group.name, "is_free": group.is_free}
+        form = {"name": group.name, "is_free": group.is_free, "mode": "octet" if inside else "ip"}
         if inside:
-            form["first_octet"] = group.first_ip.rsplit(".", 1)[1]
-            form["last_octet"] = group.last_ip.rsplit(".", 1)[1]
+            form["rows"] = [
+                (r.first_ip.rsplit(".", 1)[1], r.last_ip.rsplit(".", 1)[1]) for r in group.ranges
+            ]
         else:
-            form["first_ip"], form["last_ip"] = group.first_ip, group.last_ip
+            form["rows"] = [(r.first_ip, r.last_ip) for r in group.ranges]
         if request.method == "POST":
             form = group_values(prefix if inside else None)
             try:
@@ -211,7 +213,7 @@ def register_edit_routes(app: Flask, get_conn) -> None:
                 group=group,
                 form=form,
                 error=error,
-                prefix=prefix if "first_octet" in form else None,
+                prefix=prefix if form.get("mode") == "octet" else None,
             ),
             status,
         )
@@ -244,7 +246,11 @@ def register_edit_routes(app: Flask, get_conn) -> None:
         }
         ip_data = {
             "groups": [
-                {"id": g.id, "name": g.name, "first": g.first_ip, "last": g.last_ip}
+                {
+                    "id": g.id,
+                    "name": g.name,
+                    "ranges": [{"first": r.first_ip, "last": r.last_ip} for r in g.ranges],
+                }
                 for g in groups_
             ],
             "used": used,
@@ -566,7 +572,7 @@ def build_sections(
             order.append(grp.name)
             buckets[grp.name] = []
             free = " (free range)" if grp.is_free else ""
-            notes[grp.name] = f"{grp.first_ip} to {grp.last_ip}{free}"
+            notes[grp.name] = f"{grp.describe()}{free}"
         for device in devices:
             buckets[groups[device.group_id].name].append(device)
     else:
