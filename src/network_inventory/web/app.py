@@ -6,9 +6,20 @@ import secrets
 import sqlite3
 from pathlib import Path
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    Response,
+    abort,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
-from network_inventory import db, inventory, scanner
+from network_inventory import db, inventory, scanner, wifi
 from network_inventory.compare import Status, compare
 from network_inventory.inventory import ValidationError
 from network_inventory.web import auth
@@ -79,6 +90,7 @@ def create_app(db_path: str | Path | None = None) -> Flask:
 
     register_edit_routes(app, get_conn)
     register_difference_routes(app, get_conn)
+    register_wifi_routes(app, get_conn)
     return app
 
 
@@ -281,6 +293,94 @@ def register_edit_routes(app: Flask, get_conn) -> None:
         inventory.delete_interface(conn, interface_id)
         flash("Interface deleted.")
         return redirect(url_for("device_edit", device_id=row["device_id"]))
+
+
+def register_wifi_routes(app: Flask, get_conn) -> None:
+    def fields() -> dict:
+        form = {k: _field(k) for k in ("ssid", "security", "notes")}
+        form["password"] = request.form.get("password", "")
+        form["hidden"] = "hidden" in request.form
+        return form
+
+    def page(error=None, form=None, status=200):
+        return (
+            render_template(
+                "wifi.html",
+                networks=wifi.list_networks(get_conn()),
+                securities=wifi.SECURITIES,
+                error=error,
+                form=form or {"security": "WPA"},
+            ),
+            status,
+        )
+
+    @app.get("/wifi")
+    def wifi_list():
+        return page()
+
+    @app.post("/wifi")
+    def wifi_create():
+        form = fields()
+        try:
+            wifi.create_network(get_conn(), **form)
+        except ValidationError as error:
+            return page(str(error), form, 400)
+        flash("Wi-Fi network created.")
+        return redirect(url_for("wifi_list"))
+
+    def network_or_404(network_id: int):
+        try:
+            return wifi.get_network(get_conn(), network_id)
+        except ValidationError:
+            abort(404)
+
+    @app.route("/wifi/<int:network_id>", methods=["GET", "POST"])
+    def wifi_edit(network_id: int):
+        network = network_or_404(network_id)
+        form = {
+            "ssid": network.ssid,
+            "security": network.security,
+            "hidden": network.hidden,
+            "notes": network.notes,
+        }
+        error, status = None, 200
+        if request.method == "POST":
+            form = fields()
+            try:
+                wifi.update_network(get_conn(), network_id, **form)
+            except ValidationError as err:
+                error, status = str(err), 400
+            else:
+                flash("Wi-Fi network saved.")
+                return redirect(url_for("wifi_edit", network_id=network_id))
+        return (
+            render_template(
+                "wifi_edit.html",
+                network=network,
+                securities=wifi.SECURITIES,
+                form=form,
+                error=error,
+                # The key is only shown when asked for.
+                reveal=request.args.get("reveal") == "1",
+            ),
+            status,
+        )
+
+    @app.post("/wifi/<int:network_id>/delete")
+    def wifi_delete(network_id: int):
+        network_or_404(network_id)
+        wifi.delete_network(get_conn(), network_id)
+        flash("Wi-Fi network deleted.")
+        return redirect(url_for("wifi_list"))
+
+    @app.get("/wifi/<int:network_id>/qr.svg")
+    def wifi_qr(network_id: int):
+        svg = wifi.qr_svg(network_or_404(network_id))
+        return Response(svg, mimetype="image/svg+xml")
+
+    @app.get("/wifi/<int:network_id>/qr")
+    def wifi_qr_page(network_id: int):
+        return render_template("wifi_qr.html", network=network_or_404(network_id))
 
 
 STATUS_LABELS = {
