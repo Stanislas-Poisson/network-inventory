@@ -16,8 +16,8 @@
       {% endfor %}
     </select>
   </label>
-  <label>Type <input name="type" value="{{ form.get('type', '') }}"></label>
-  <label>Category <input name="category" value="{{ form.get('category', '') }}"></label>
+  <label>Type <input name="type" value="{{ form.get('type', '') }}" list="device-types" autocomplete="off"></label>
+  <datalist id="device-types">{% for t in types %}<option value="{{ t }}">{% endfor %}</datalist>
   <label>Notes <textarea name="notes" rows="3">{{ form.get('notes', '') }}</textarea></label>
   {% if not device %}
     <label>MAC <input name="mac" value="{{ form.get('mac', '') }}" placeholder="aa:bb:cc:00:11:22" class="mono"></label>

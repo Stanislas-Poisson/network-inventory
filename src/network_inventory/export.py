@@ -62,7 +62,6 @@ def backup(conn: sqlite3.Connection, include_wifi_keys: bool = True) -> dict:
                 "name": d.name,
                 "group": names[d.group_id],
                 "type": d.type,
-                "category": d.category,
                 "notes": d.notes,
                 "interfaces": [
                     {"mac": i.mac, "ip": i.expected_ip, "label": i.label} for i in d.interfaces
@@ -111,7 +110,6 @@ def _load(conn: sqlite3.Connection, data: dict) -> None:
             ids[d["group"]],
             [(i["mac"], i.get("ip")) for i in d.get("interfaces", [])],
             d.get("type", ""),
-            d.get("category", ""),
             d.get("notes", ""),
         )
         for stored, item in zip(

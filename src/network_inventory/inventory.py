@@ -40,7 +40,6 @@ class Device:
     id: int
     name: str
     type: str
-    category: str
     group_id: int
     notes: str
     interfaces: list[Interface] = field(default_factory=list)
@@ -202,7 +201,6 @@ def create_device(
     group_id: int,
     interfaces: list[tuple[str, str | None]] = (),
     type: str = "",
-    category: str = "",
     notes: str = "",
 ) -> int:
     """Create a device and its interfaces, given as (mac, expected_ip) pairs."""
@@ -212,9 +210,8 @@ def create_device(
     try:
         with conn:
             cur = conn.execute(
-                "INSERT INTO devices (name, type, category, group_id, notes)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (name, type.strip(), category.strip(), group_id, notes.strip()),
+                "INSERT INTO devices (name, type, group_id, notes) VALUES (?, ?, ?, ?)",
+                (name, type.strip(), group_id, notes.strip()),
             )
             device_id = cur.lastrowid
             for mac, ip in cleaned:
@@ -230,7 +227,6 @@ def update_device(
     name: str,
     group_id: int,
     type: str = "",
-    category: str = "",
     notes: str = "",
 ) -> None:
     get_device(conn, device_id)
@@ -244,9 +240,8 @@ def update_device(
     try:
         with conn:
             conn.execute(
-                "UPDATE devices SET name = ?, type = ?, category = ?, group_id = ?, notes = ?"
-                " WHERE id = ?",
-                (name, type.strip(), category.strip(), group_id, notes.strip(), device_id),
+                "UPDATE devices SET name = ?, type = ?, group_id = ?, notes = ? WHERE id = ?",
+                (name, type.strip(), group_id, notes.strip(), device_id),
             )
     except sqlite3.IntegrityError:
         raise ValidationError(f"A device named {name!r} already exists.") from None
@@ -269,7 +264,6 @@ def _device(conn: sqlite3.Connection, row: sqlite3.Row) -> Device:
         row["id"],
         row["name"],
         row["type"],
-        row["category"],
         row["group_id"],
         row["notes"],
         interfaces,
@@ -281,6 +275,14 @@ def get_device(conn: sqlite3.Connection, device_id: int) -> Device:
     if row is None:
         raise ValidationError("This device does not exist.")
     return _device(conn, row)
+
+
+def list_types(conn: sqlite3.Connection) -> list[str]:
+    """The distinct device types already used, to suggest them again."""
+    rows = conn.execute(
+        "SELECT DISTINCT type FROM devices WHERE type != '' ORDER BY type COLLATE NOCASE"
+    ).fetchall()
+    return [r["type"] for r in rows]
 
 
 def list_devices(conn: sqlite3.Connection) -> list[Device]:
