@@ -35,9 +35,14 @@ def test_payload_quotes_a_value_made_only_of_hex_digits():
     )
 
 
-def test_qr_code_is_an_svg():
+def test_qr_code_is_a_standalone_svg_that_a_browser_can_show():
+    import xml.etree.ElementTree as ET
+
     svg = wifi.qr_svg(network())
-    assert svg.startswith("<svg") and "</svg>" in svg
+    # Parsed as XML, and in the SVG namespace: without it an <img> shows nothing.
+    root = ET.fromstring(svg)  # noqa: S314 (our own output, not untrusted data)
+    assert root.tag == "{http://www.w3.org/2000/svg}svg"
+    assert "</svg>" in svg
 
 
 def test_repr_does_not_leak_the_key():
@@ -103,6 +108,7 @@ def test_key_is_not_in_the_pages_unless_asked(client):
 def test_qr_routes_serve_an_svg(client):
     response = client.get("/wifi/1/qr.svg")
     assert response.status_code == 200 and response.mimetype == "image/svg+xml"
+    assert b'xmlns="http://www.w3.org/2000/svg"' in response.data
     assert response.headers["Cache-Control"] == "no-store"
     assert "qr.svg" in client.get("/wifi/1/qr").get_data(as_text=True)
 

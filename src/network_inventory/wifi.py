@@ -4,6 +4,7 @@ The key is stored in clear: the QR code needs it. It is only shown on request, n
 logged, and the QR code is built here, never by an external service.
 """
 
+import io
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -51,7 +52,13 @@ def payload(network: WifiNetwork) -> str:
 def qr_svg(network: WifiNetwork) -> str:
     """The QR code as an SVG document."""
     code = segno.make(payload(network), error="m", micro=False)
-    return code.svg_inline(scale=8, border=4, dark="#000", light="#fff", omitsize=False)
+    out = io.BytesIO()
+    # A standalone file: it needs the XML declaration and the SVG namespace, or a browser
+    # refuses to show it in an <img>. (svg_inline leaves both out, it is for HTML pages.)
+    code.save(
+        out, kind="svg", scale=8, border=4, dark="#000", light="#fff", xmldecl=True, svgns=True
+    )
+    return out.getvalue().decode("utf-8")
 
 
 def _validate(ssid: str, password: str, security: str) -> tuple[str, str]:
