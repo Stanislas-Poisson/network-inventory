@@ -21,6 +21,9 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--interface", help="network interface to scan")
     sub.add_parser("diff", help="compare the last scan with the inventory")
     sub.add_parser("export", help="print a table of MAC, IP, name and group")
+    serve = sub.add_parser("serve", help="start the web interface")
+    serve.add_argument("--host", default="127.0.0.1", help="address to listen on")
+    serve.add_argument("--port", type=int, default=8080)
     return parser
 
 
@@ -78,10 +81,17 @@ def cmd_export(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    from network_inventory.web.app import create_app
+
+    create_app().run(host=args.host, port=args.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    commands = {"scan": cmd_scan, "diff": cmd_diff, "export": cmd_export}
+    commands = {"scan": cmd_scan, "diff": cmd_diff, "export": cmd_export, "serve": cmd_serve}
     if args.command is None:
         parser.print_help()
         return 0
