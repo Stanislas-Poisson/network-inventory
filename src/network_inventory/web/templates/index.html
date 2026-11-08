@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Devices</h1>
+
+<nav class="tabs" aria-label="Group devices by">
+  {% for key, label in views.items() %}
+    <a href="{{ url_for('index', by=key) }}"{% if key == view %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% for section in sections %}
+  <section>
+    {% if section.title %}
+      <h2>{{ section.title }}{% if section.note %} <small>{{ section.note }}</small>{% endif %}</h2>
+    {% endif %}
+    {% if section.devices %}
+      <table class="devices">
+        <thead>
+          <tr><th>Name</th><th>Type</th><th>Category</th><th>IP</th><th>MAC</th></tr>
+        </thead>
+        <tbody>
+          {% for device in section.devices %}
+            <tr>
+              <td data-label="Name">{{ device.name }}</td>
+              <td data-label="Type">{{ device.type or "-" }}</td>
+              <td data-label="Category">{{ device.category or "-" }}</td>
+              <td data-label="IP">
+                {% for i in device.interfaces %}<div>{{ i.expected_ip or "-" }}</div>{% else %}-{% endfor %}
+              </td>
+              <td data-label="MAC">
+                {% for i in device.interfaces %}<div class="mono">{{ i.mac }}</div>{% else %}-{% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No device.</p>
+    {% endif %}
+  </section>
+{% else %}
+  <p class="empty">The inventory is empty.</p>
+{% endfor %}
+{% endblock %}
