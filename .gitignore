@@ -6,3 +6,10 @@
 # The real inventory and the scan history stay out of the repository
 *.db
 *.sqlite3
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
