@@ -23,8 +23,8 @@ function element(extra = {}) {
 function page() {
   const data = {
     groups: [
-      { id: 1, name: "PC", first: "192.0.2.10", last: "192.0.2.19" },
-      { id: 3, name: "Free", first: "192.0.2.100", last: "192.0.2.199" },
+      { id: 1, name: "PC", ranges: [{ first: "192.0.2.10", last: "192.0.2.19" }] },
+      { id: 3, name: "Free", ranges: [{ first: "192.0.2.100", last: "192.0.2.199" }] },
     ],
     used: { "192.0.2.10": "Desk" },
     group: null,

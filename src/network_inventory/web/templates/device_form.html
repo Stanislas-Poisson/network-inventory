@@ -14,7 +14,7 @@
     <select name="group_id" required>
       {% for group in groups %}
         <option value="{{ group.id }}"{% if group.id|string == form.get('group_id', '')|string %} selected{% endif %}>
-          {{ group.name }} ({{ group.first_ip }} to {{ group.last_ip }})
+          {{ group.name }} ({{ group.describe() }})
         </option>
       {% endfor %}
     </select>

@@ -18,7 +18,7 @@ def test_main_without_command_prints_help(capsys):
 
 def test_export_lists_one_row_per_interface(database, capsys):
     conn = db.connect(database)
-    group = inventory.create_group(conn, "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn, "PC", [("192.0.2.10", "192.0.2.19")])
     inventory.create_device(conn, "Desktop", group, [("aa:bb:cc:00:00:01", "192.0.2.10")])
     assert main(["export"]) == 0
     lines = capsys.readouterr().out.splitlines()
@@ -33,7 +33,7 @@ def test_diff_without_scan_fails(database, capsys):
 
 def test_diff_reports_what_needs_attention(database, capsys):
     conn = db.connect(database)
-    group = inventory.create_group(conn, "PC", "192.0.2.10", "192.0.2.19")
+    group = inventory.create_group(conn, "PC", [("192.0.2.10", "192.0.2.19")])
     inventory.create_device(conn, "Desktop", group, [("aa:bb:cc:00:00:01", "192.0.2.10")])
     scan = scanner.parse_arp_scan("192.0.2.77\tde:ad:be:ef:00:01\tVendor\n")
     scanner.store_observations(conn, scan, "2026-01-01T10:00:00Z")

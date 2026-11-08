@@ -19,12 +19,22 @@
     return [value >>> 24, (value >>> 16) & 255, (value >>> 8) & 255, value & 255].join(".");
   }
 
-  // The first address of the group's range that nobody expects, or null when it is full.
+  function inRange(value, range) {
+    return value >= toInt(range.first) && value <= toInt(range.last);
+  }
+
+  function describe(group) {
+    return group.ranges.map(function (r) { return r.first + " to " + r.last; }).join(", ");
+  }
+
+  // The first address of the group's ranges that nobody expects, or null when it is full.
   function firstFree(group, used) {
-    var first = toInt(group.first);
-    var last = toInt(group.last);
-    for (var value = first; value <= last; value++) {
-      if (!Object.prototype.hasOwnProperty.call(used, toIp(value))) return toIp(value);
+    for (var r = 0; r < group.ranges.length; r++) {
+      var first = toInt(group.ranges[r].first);
+      var last = toInt(group.ranges[r].last);
+      for (var value = first; value <= last; value++) {
+        if (!Object.prototype.hasOwnProperty.call(used, toIp(value))) return toIp(value);
+      }
     }
     return null;
   }
@@ -34,8 +44,8 @@
     if (String(ip).trim() === "") return "";
     var value = toInt(ip);
     if (value === null) return "This is not a valid IPv4 address.";
-    if (value < toInt(group.first) || value > toInt(group.last)) {
-      return "Outside the range of " + group.name + " (" + group.first + " to " + group.last + ").";
+    if (!group.ranges.some(function (r) { return inRange(value, r); })) {
+      return "Outside the range of " + group.name + " (" + describe(group) + ").";
     }
     var normal = toIp(value);
     if (Object.prototype.hasOwnProperty.call(used, normal)) {
@@ -44,12 +54,12 @@
     return "";
   }
 
-  // The group whose range holds the IP (the groups do not overlap), or null.
+  // The group whose ranges hold the IP (the groups do not overlap), or null.
   function groupFor(ip, groups) {
     var value = toInt(ip);
     if (value === null) return null;
     for (var i = 0; i < groups.length; i++) {
-      if (value >= toInt(groups[i].first) && value <= toInt(groups[i].last)) return groups[i];
+      if (groups[i].ranges.some(function (r) { return inRange(value, r); })) return groups[i];
     }
     return null;
   }
@@ -79,7 +89,7 @@
       var message = g ? check(input.value, g, data.used) : "";
       input.setCustomValidity(message);
       feedback.textContent = message;
-      if (g) input.placeholder = g.first + " to " + g.last;
+      if (g) input.placeholder = describe(g);
     }
 
     function suggest() {
