@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block content %}
+<h1>{% if device %}{{ device.name }}{% else %}New device{% endif %}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post" class="stack">
+  {{ csrf() }}
+  <label>Name <input name="name" value="{{ form.get('name', '') }}" required></label>
+  <label>Group
+    <select name="group_id" required>
+      {% for group in groups %}
+        <option value="{{ group.id }}"{% if group.id|string == form.get('group_id', '')|string %} selected{% endif %}>
+          {{ group.name }} ({{ group.first_ip }} to {{ group.last_ip }})
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Type <input name="type" value="{{ form.get('type', '') }}"></label>
+  <label>Category <input name="category" value="{{ form.get('category', '') }}"></label>
+  <label>Notes <textarea name="notes" rows="3">{{ form.get('notes', '') }}</textarea></label>
+  {% if not device %}
+    <label>MAC <input name="mac" value="{{ form.get('mac', '') }}" placeholder="aa:bb:cc:00:11:22" class="mono"></label>
+    <label>IP <input name="ip" value="{{ form.get('ip', '') or suggestion or '' }}" inputmode="decimal"></label>
+    {% if suggestion %}<p class="hint">First free IP of this group: {{ suggestion }}</p>{% endif %}
+  {% endif %}
+  <button>{% if device %}Save{% else %}Create the device{% endif %}</button>
+  <a href="{{ url_for('index') }}">Back</a>
+</form>
+
+{% if device %}
+  <h2>Network interfaces</h2>
+  {% for i in device.interfaces %}
+    <form method="post" action="{{ url_for('interface_save', interface_id=i.id) }}" class="row">
+      {{ csrf() }}
+      <label>MAC <input name="mac" value="{{ i.mac }}" class="mono" required></label>
+      <label>IP <input name="ip" value="{{ i.expected_ip or '' }}" inputmode="decimal"></label>
+      <label>Label <input name="label" value="{{ i.label }}"></label>
+      <button>Save</button>
+      <button class="danger" formaction="{{ url_for('interface_delete', interface_id=i.id) }}">Delete</button>
+    </form>
+  {% else %}
+    <p class="empty">No interface.</p>
+  {% endfor %}
+
+  <h3>Add a network card</h3>
+  <form method="post" action="{{ url_for('interface_add', device_id=device.id) }}" class="row">
+    {{ csrf() }}
+    <label>MAC <input name="mac" class="mono" required></label>
+    <label>IP <input name="ip" value="{{ suggestion or '' }}" inputmode="decimal"></label>
+    <label>Label <input name="label"></label>
+    <button>Add</button>
+  </form>
+
+  <form method="post" action="{{ url_for('device_delete', device_id=device.id) }}" class="danger-zone">
+    {{ csrf() }}
+    <button class="danger">Delete this device</button>
+  </form>
+{% endif %}
+{% endblock %}

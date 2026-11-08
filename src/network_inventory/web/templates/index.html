@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Devices</h1>
+<p><a class="button" href="{{ url_for('device_new') }}">Add a device</a></p>
 
 <nav class="tabs" aria-label="Group devices by">
   {% for key, label in views.items() %}
@@ -21,7 +22,7 @@
         <tbody>
           {% for device in section.devices %}
             <tr>
-              <td data-label="Name">{{ device.name }}</td>
+              <td data-label="Name"><a href="{{ url_for('device_edit', device_id=device.id) }}">{{ device.name }}</a></td>
               <td data-label="Type">{{ device.type or "-" }}</td>
               <td data-label="Category">{{ device.category or "-" }}</td>
               <td data-label="IP">
