@@ -2,7 +2,7 @@
 
 A home network inventory that is the source of truth: a list of devices by type, category, IP and name, compared with what is really on the network, and exported to configure a router again without searching everything.
 
-> **Status: design.** Nothing is coded yet. The architecture below is a proposal.
+> **Status: first version in progress.** The inventory, the scan, the web interface, the Wi-Fi QR codes and the exports work. The installation on a Raspberry Pi is documented but not tested yet.
 
 ## The idea
 
@@ -23,6 +23,17 @@ A home network inventory that is the source of truth: a list of devices by type,
 | Export | A table (MAC, IP, name, group) to enter in the router, a full JSON backup (the Wi-Fi keys are included, so keep the file encrypted), then an optional automatic push. |
 
 It is meant to run on a Raspberry Pi 3, with no database server and no Docker (Docker is optional).
+
+## Usage
+
+```bash
+make install
+.venv/bin/python -m network_inventory set-password
+.venv/bin/python -m network_inventory serve
+```
+
+Other commands: `scan`, `diff`, `export --format table|csv|markdown|json`, `import FILE`.
+The installation on a Raspberry Pi is in [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Requirements
 
