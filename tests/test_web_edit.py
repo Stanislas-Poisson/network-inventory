@@ -218,3 +218,29 @@ def test_network_is_detected_from_the_scan_of_this_machine(setup):
     scanner.store_observations(conn_of(path), scan, "2026-01-01T10:00:00Z")
     page = client.get("/groups").get_data(as_text=True)
     assert "198.51.100." in page and "Detected from the last scan" in page
+
+
+def test_device_form_carries_the_data_for_the_ip_script(setup):
+    client, path = setup
+    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    inventory.create_device(conn_of(path), "A", group, [("aa:bb:cc:00:00:01", "192.0.2.10")])
+    page = client.get("/devices/new").get_data(as_text=True)
+    assert "data-ip-form=" in page and "ip-form.js" in page
+    assert '"192.0.2.10": "A"' in page
+
+
+def test_the_ip_script_data_is_valid_json_even_with_quotes_in_names(setup):
+    import html
+    import json
+    import re
+
+    client, path = setup
+    group = inventory.create_group(conn_of(path), 'PC\'s "main"', "192.0.2.10", "192.0.2.19")
+    inventory.create_device(
+        conn_of(path), "O'Neil <b>", group, [("aa:bb:cc:00:00:01", "192.0.2.10")]
+    )
+    page = client.get("/devices/new").get_data(as_text=True)
+    raw = re.search(r"data-ip-form='([^']*)'", page).group(1)
+    data = json.loads(html.unescape(raw))
+    assert data["used"] == {"192.0.2.10": "O'Neil <b>"}
+    assert data["groups"][0]["name"] == 'PC\'s "main"'
