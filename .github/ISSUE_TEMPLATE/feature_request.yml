@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea or a missing capability.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: The need
+      description: What you are trying to do and cannot.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: How you would like it to work, if you have one.

@@ -1,0 +1,8 @@
+.env
+.env.*
+*.log
+.DS_Store
+
+# The real inventory and the scan history stay out of the repository
+inventory.yaml
+*.db
