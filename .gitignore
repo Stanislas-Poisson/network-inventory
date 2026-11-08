@@ -4,8 +4,10 @@
 .DS_Store
 
 # The real inventory and the scan history stay out of the repository
-inventory.yaml
 *.db
+*.sqlite3
+
+# Python
 .venv/
 __pycache__/
 .pytest_cache/
