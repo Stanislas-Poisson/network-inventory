@@ -1,9 +1,18 @@
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
 
-{% macro group_fields(form) %}
+{% macro group_fields(form, prefix) %}
   <label>Name <input name="name" value="{{ form.get('name', '') }}" required></label>
-  <label>First IP <input name="first_ip" value="{{ form.get('first_ip', '') }}" inputmode="decimal" required></label>
-  <label>Last IP <input name="last_ip" value="{{ form.get('last_ip', '') }}" inputmode="decimal" required></label>
+  {% if prefix %}
+    <div class="range">
+      <label>First <span class="prefixed"><span class="prefix">{{ prefix }}.</span>
+        <input name="first_octet" value="{{ form.get('first_octet', '') }}" inputmode="numeric" min="1" max="254" required></span></label>
+      <label>Last <span class="prefixed"><span class="prefix">{{ prefix }}.</span>
+        <input name="last_octet" value="{{ form.get('last_octet', '') }}" inputmode="numeric" min="1" max="254" required></span></label>
+    </div>
+  {% else %}
+    <label>First IP <input name="first_ip" value="{{ form.get('first_ip', '') }}" inputmode="decimal" required></label>
+    <label>Last IP <input name="last_ip" value="{{ form.get('last_ip', '') }}" inputmode="decimal" required></label>
+  {% endif %}
   <label class="check"><input type="checkbox" name="is_free"{% if form.get('is_free') %} checked{% endif %}> Free range (new devices get an address here)</label>
 {% endmacro %}
 

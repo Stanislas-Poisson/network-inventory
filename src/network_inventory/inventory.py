@@ -346,3 +346,43 @@ def next_free_ip(conn: sqlite3.Connection, group_id: int) -> str | None:
         if candidate not in used:
             return candidate
     return None
+
+
+# ---------------------------------------------------------------- settings
+
+
+def get_setting(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    with conn:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+
+
+_PREFIX = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}$")
+
+
+def clean_prefix(value: str) -> str:
+    """The first three numbers of the network, such as ``192.168.1``."""
+    prefix = value.strip().strip(".")
+    if not _PREFIX.match(prefix):
+        raise ValidationError("The network is three numbers separated by dots, like 192.168.1.")
+    parse_ip(prefix + ".1")
+    return ".".join(str(int(part)) for part in prefix.split("."))
+
+
+def with_octet(prefix: str, value: str, what: str) -> str:
+    """``prefix`` and the last number typed by the user, as a full IP."""
+    try:
+        octet = int(value)
+    except ValueError:
+        raise ValidationError(f"The {what} number must be between 1 and 254.") from None
+    if not 1 <= octet <= 254:
+        raise ValidationError(f"The {what} number must be between 1 and 254.")
+    return f"{prefix}.{octet}"

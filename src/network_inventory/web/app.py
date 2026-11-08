@@ -98,18 +98,68 @@ def _field(name: str) -> str:
     return request.form.get(name, "").strip()
 
 
+def network_prefix(conn) -> str | None:
+    """The network the groups live in: the setting, else the one this machine scanned."""
+    saved = inventory.get_setting(conn, "network")
+    if saved:
+        return saved
+    for obs in scanner.latest_scan(conn):
+        if obs.vendor == scanner.SELF_VENDOR:
+            return ".".join(obs.ip.split(".")[:3])
+    return None
+
+
+def group_values(prefix: str | None) -> dict:
+    """The group fields of the posted form, as full IPs (octets are added to the prefix)."""
+    form = {"name": _field("name"), "is_free": "is_free" in request.form}
+    if "first_octet" in request.form and prefix:
+        form["first_octet"], form["last_octet"] = _field("first_octet"), _field("last_octet")
+    else:
+        form["first_ip"], form["last_ip"] = _field("first_ip"), _field("last_ip")
+    return form
+
+
+def group_call_args(form: dict, prefix: str | None) -> dict:
+    """The arguments of create_group and update_group for a posted form."""
+    if "first_octet" in form:
+        first = inventory.with_octet(prefix, form["first_octet"], "first")
+        last = inventory.with_octet(prefix, form["last_octet"], "last")
+    else:
+        first, last = form["first_ip"], form["last_ip"]
+    return {
+        "name": form["name"],
+        "first_ip": first,
+        "last_ip": last,
+        "is_free": form["is_free"],
+    }
+
+
 def register_edit_routes(app: Flask, get_conn) -> None:
     def groups_page(error: str | None = None, form: dict | None = None, status: int = 200):
         conn = get_conn()
+        prefix = network_prefix(conn)
         return (
             render_template(
                 "groups.html",
                 groups=inventory.list_groups(conn),
                 error=error,
                 form=form or {},
+                prefix=prefix,
+                prefix_saved=inventory.get_setting(conn, "network"),
             ),
             status,
         )
+
+    @app.post("/settings/network")
+    def network_save():
+        try:
+            prefix = inventory.clean_prefix(request.form.get("prefix", ""))
+        except ValidationError as error:
+            flash(str(error))
+        else:
+            inventory.set_setting(get_conn(), "network", prefix)
+            flash("Network saved.")
+        return redirect(url_for("groups"))
 
     @app.get("/groups")
     def groups():
@@ -117,10 +167,11 @@ def register_edit_routes(app: Flask, get_conn) -> None:
 
     @app.post("/groups")
     def group_create():
-        form = {k: _field(k) for k in ("name", "first_ip", "last_ip")}
-        form["is_free"] = "is_free" in request.form
+        conn = get_conn()
+        prefix = network_prefix(conn)
+        form = group_values(prefix)
         try:
-            inventory.create_group(get_conn(), **form)
+            inventory.create_group(conn, **group_call_args(form, prefix))
         except ValidationError as error:
             return groups_page(str(error), form, 400)
         flash("Group created.")
@@ -134,23 +185,36 @@ def register_edit_routes(app: Flask, get_conn) -> None:
         except ValidationError:
             abort(404)
         error, status = None, 200
-        form = {
-            "name": group.name,
-            "first_ip": group.first_ip,
-            "last_ip": group.last_ip,
-            "is_free": group.is_free,
-        }
+        prefix = network_prefix(conn)
+        # The octet inputs are only for a group that lives inside the network.
+        inside = prefix and all(
+            ip.startswith(prefix + ".") for ip in (group.first_ip, group.last_ip)
+        )
+        form = {"name": group.name, "is_free": group.is_free}
+        if inside:
+            form["first_octet"] = group.first_ip.rsplit(".", 1)[1]
+            form["last_octet"] = group.last_ip.rsplit(".", 1)[1]
+        else:
+            form["first_ip"], form["last_ip"] = group.first_ip, group.last_ip
         if request.method == "POST":
-            form = {k: _field(k) for k in ("name", "first_ip", "last_ip")}
-            form["is_free"] = "is_free" in request.form
+            form = group_values(prefix if inside else None)
             try:
-                inventory.update_group(conn, group_id, **form)
+                inventory.update_group(conn, group_id, **group_call_args(form, prefix))
             except ValidationError as err:
                 error, status = str(err), 400
             else:
                 flash("Group saved.")
                 return redirect(url_for("groups"))
-        return render_template("group_edit.html", group=group, form=form, error=error), status
+        return (
+            render_template(
+                "group_edit.html",
+                group=group,
+                form=form,
+                error=error,
+                prefix=prefix if "first_octet" in form else None,
+            ),
+            status,
+        )
 
     @app.post("/groups/<int:group_id>/delete")
     def group_delete(group_id: int):

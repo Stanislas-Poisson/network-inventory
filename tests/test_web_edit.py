@@ -153,3 +153,68 @@ def test_device_form_suggests_the_types_already_used(setup):
     inventory.create_device(conn_of(path), "A", group, type="laptop")
     page = client.get("/devices/new").get_data(as_text=True)
     assert '<option value="laptop">' in page
+
+
+def test_network_prefix_turns_the_group_form_into_two_numbers(setup):
+    client, path = setup
+    assert "first_octet" not in client.get("/groups").get_data(as_text=True)
+    response = post(client, "/settings/network", prefix="192.0.2.")
+    assert response.status_code == 302
+    assert inventory.get_setting(conn_of(path), "network") == "192.0.2"
+    page = client.get("/groups").get_data(as_text=True)
+    assert 'name="first_octet"' in page and "192.0.2." in page
+
+
+def test_group_is_created_from_the_two_numbers(setup):
+    client, path = setup
+    post(client, "/settings/network", prefix="192.0.2")
+    response = post(client, "/groups", name="PC", first_octet="10", last_octet="19")
+    assert response.status_code == 302
+    group = inventory.list_groups(conn_of(path))[0]
+    assert (group.first_ip, group.last_ip) == ("192.0.2.10", "192.0.2.19")
+
+
+@pytest.mark.parametrize("first,last", [("0", "5"), ("5", "255"), ("x", "5"), ("20", "10")])
+def test_bad_numbers_are_refused(setup, first, last):
+    client, path = setup
+    post(client, "/settings/network", prefix="192.0.2")
+    response = post(client, "/groups", name="PC", first_octet=first, last_octet=last)
+    assert response.status_code == 400
+    assert inventory.list_groups(conn_of(path)) == []
+
+
+def test_group_edit_shows_the_numbers_and_saves_them(setup):
+    client, path = setup
+    post(client, "/settings/network", prefix="192.0.2")
+    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    page = client.get(f"/groups/{group}").get_data(as_text=True)
+    assert 'name="first_octet" value="10"' in page
+    post(client, f"/groups/{group}", name="PC", first_octet="10", last_octet="29")
+    assert inventory.get_group(conn_of(path), group).last_ip == "192.0.2.29"
+
+
+def test_group_outside_the_network_keeps_the_full_ip_fields(setup):
+    client, path = setup
+    post(client, "/settings/network", prefix="192.0.2")
+    group = inventory.create_group(conn_of(path), "Other", "198.51.100.10", "198.51.100.19")
+    page = client.get(f"/groups/{group}").get_data(as_text=True)
+    assert 'name="first_ip"' in page and "first_octet" not in page
+
+
+@pytest.mark.parametrize("bad", ["192.168", "a.b.c", "300.1.1", "1.2.3.4"])
+def test_bad_network_is_refused(setup, bad):
+    client, path = setup
+    post(client, "/settings/network", prefix=bad)
+    assert inventory.get_setting(conn_of(path), "network") is None
+
+
+def test_network_is_detected_from_the_scan_of_this_machine(setup):
+    from network_inventory import scanner
+
+    client, path = setup
+    scan = scanner.parse_arp_scan(
+        "Interface: eth0, type: EN10MB, MAC: 50:eb:f6:00:00:99, IPv4: 198.51.100.5\n"
+    )
+    scanner.store_observations(conn_of(path), scan, "2026-01-01T10:00:00Z")
+    page = client.get("/groups").get_data(as_text=True)
+    assert "198.51.100." in page and "Detected from the last scan" in page
