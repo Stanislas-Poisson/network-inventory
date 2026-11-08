@@ -44,7 +44,17 @@
     return "";
   }
 
-  var logic = { toInt: toInt, toIp: toIp, firstFree: firstFree, check: check };
+  // The group whose range holds the IP (the groups do not overlap), or null.
+  function groupFor(ip, groups) {
+    var value = toInt(ip);
+    if (value === null) return null;
+    for (var i = 0; i < groups.length; i++) {
+      if (value >= toInt(groups[i].first) && value <= toInt(groups[i].last)) return groups[i];
+    }
+    return null;
+  }
+
+  var logic = { toInt: toInt, toIp: toIp, firstFree: firstFree, check: check, groupFor: groupFor };
 
   if (typeof module !== "undefined" && module.exports) module.exports = logic;
   if (typeof document === "undefined") return;
@@ -88,24 +98,28 @@
     if (select) select.addEventListener("change", suggest);
     input.addEventListener("input", validate);
     validate();
-  }
 
-  // The menu of connected devices fills the MAC field.
-  function setupConnected(form) {
+    // A connected device is registered as it is seen: its MAC, its IP (never rewritten) and
+    // the group that holds that IP.
     var box = form.querySelector("[data-connected]");
     var mac = form.querySelector("input[name=mac]");
-    if (!box || !mac) return;
-    box.hidden = false;
-    box.querySelector("select").addEventListener("change", function (event) {
-      if (!event.target.value) return;
-      mac.value = event.target.value;
-      var name = form.querySelector("input[name=name]");
-      if (name && name.value === "") name.focus();
-    });
+    if (box && mac) {
+      box.hidden = false;
+      box.querySelector("select").addEventListener("change", function (event) {
+        var option = event.target.selectedOptions[0];
+        if (!option || !option.value) return;
+        mac.value = option.value;
+        var seen = option.getAttribute("data-ip");
+        var found = groupFor(seen, data.groups);
+        if (select && found) select.value = String(found.id);
+        // Not the suggested IP any more: changing the group by hand will not replace it.
+        input.value = seen;
+        validate();
+        var name = form.querySelector("input[name=name]");
+        if (name && name.value === "") name.focus();
+      });
+    }
   }
 
-  document.querySelectorAll("form[data-ip-form]").forEach(function (form) {
-    setup(form);
-    setupConnected(form);
-  });
+  document.querySelectorAll("form[data-ip-form]").forEach(setup);
 })();
