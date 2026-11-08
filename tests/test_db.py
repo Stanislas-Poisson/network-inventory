@@ -48,3 +48,18 @@ def test_database_newer_than_the_program_is_refused():
 def test_db_path_uses_the_environment_variable(monkeypatch, tmp_path):
     monkeypatch.setenv(db.DB_ENV, str(tmp_path / "x.db"))
     assert db.db_path() == tmp_path / "x.db"
+
+
+def test_upgrade_keeps_the_devices_when_the_category_column_is_dropped():
+    conn = sqlite3.connect(":memory:")
+    migrations = db.package_migrations()
+    db.migrate(conn, migrations[:2])
+    conn.execute(
+        "INSERT INTO groups (name, first_ip, last_ip) VALUES ('G', '192.0.2.1', '192.0.2.9')"
+    )
+    conn.execute("INSERT INTO devices (name, category, group_id) VALUES ('D', 'old', 1)")
+    conn.commit()
+    db.migrate(conn, migrations)
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(devices)")]
+    assert "category" not in columns
+    assert conn.execute("SELECT name FROM devices").fetchone()[0] == "D"

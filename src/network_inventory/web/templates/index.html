@@ -17,14 +17,13 @@
     {% if section.devices %}
       <table class="devices">
         <thead>
-          <tr><th>Name</th><th>Type</th><th>Category</th><th>IP</th><th>MAC</th></tr>
+          <tr><th>Name</th><th>Type</th><th>IP</th><th>MAC</th></tr>
         </thead>
         <tbody>
           {% for device in section.devices %}
             <tr>
               <td data-label="Name"><a href="{{ url_for('device_edit', device_id=device.id) }}">{{ device.name }}</a></td>
               <td data-label="Type">{{ device.type or "-" }}</td>
-              <td data-label="Category">{{ device.category or "-" }}</td>
               <td data-label="IP">
                 {% for i in device.interfaces %}<div>{{ i.expected_ip or "-" }}</div>{% else %}-{% endfor %}
               </td>

@@ -28,7 +28,6 @@ from network_inventory.web import auth
 VIEWS = {
     "group": "Group",
     "type": "Type",
-    "category": "Category",
     "ip": "IP",
     "name": "Name",
 }
@@ -181,6 +180,7 @@ def register_edit_routes(app: Flask, get_conn) -> None:
                 form=form,
                 error=error,
                 suggestion=suggestion,
+                types=inventory.list_types(conn),
             ),
             status,
         )
@@ -193,7 +193,7 @@ def register_edit_routes(app: Flask, get_conn) -> None:
             "ip": request.args.get("ip", ""),
         }
         if request.method == "POST":
-            form = {k: _field(k) for k in ("name", "type", "category", "notes", "mac", "ip")}
+            form = {k: _field(k) for k in ("name", "type", "notes", "mac", "ip")}
             form["group_id"] = _field("group_id")
             try:
                 interfaces = [(form["mac"], form["ip"])] if form["mac"] else []
@@ -203,7 +203,6 @@ def register_edit_routes(app: Flask, get_conn) -> None:
                     int(form["group_id"] or 0),
                     interfaces,
                     form["type"],
-                    form["category"],
                     form["notes"],
                 )
             except ValidationError as error:
@@ -222,12 +221,11 @@ def register_edit_routes(app: Flask, get_conn) -> None:
         form = {
             "name": device.name,
             "type": device.type,
-            "category": device.category,
             "notes": device.notes,
             "group_id": str(device.group_id),
         }
         if request.method == "POST":
-            form = {k: _field(k) for k in ("name", "type", "category", "notes", "group_id")}
+            form = {k: _field(k) for k in ("name", "type", "notes", "group_id")}
             try:
                 inventory.update_device(
                     conn,
@@ -235,7 +233,6 @@ def register_edit_routes(app: Flask, get_conn) -> None:
                     form["name"],
                     int(form["group_id"] or 0),
                     form["type"],
-                    form["category"],
                     form["notes"],
                 )
             except ValidationError as error:

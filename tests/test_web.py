@@ -11,11 +11,9 @@ def client(tmp_path):
     pc = inventory.create_group(conn, "PC", "192.0.2.10", "192.0.2.19")
     iot = inventory.create_group(conn, "IoT", "192.0.2.40", "192.0.2.49")
     inventory.create_device(
-        conn, "Desktop", pc, [("aa:bb:cc:00:00:01", "192.0.2.10")], type="computer", category="work"
+        conn, "Desktop", pc, [("aa:bb:cc:00:00:01", "192.0.2.10")], type="computer"
     )
-    inventory.create_device(
-        conn, "Lamp", iot, [("aa:bb:cc:00:00:02", "192.0.2.41")], type="light", category="home"
-    )
+    inventory.create_device(conn, "Lamp", iot, [("aa:bb:cc:00:00:02", "192.0.2.41")], type="light")
     conn.close()
     return create_app(path).test_client()
 
@@ -26,7 +24,7 @@ def test_default_view_groups_devices_by_group_range_order(client):
     assert "192.0.2.10 to 192.0.2.19" in page
 
 
-@pytest.mark.parametrize("view", ["group", "type", "category", "ip", "name"])
+@pytest.mark.parametrize("view", ["group", "type", "ip", "name"])
 def test_every_view_renders_every_device(client, view):
     response = client.get(f"/?by={view}")
     page = response.get_data(as_text=True)

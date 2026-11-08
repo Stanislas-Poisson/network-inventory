@@ -115,3 +115,11 @@ def test_next_free_ip_is_none_when_the_group_is_full(conn):
     group = inventory.create_group(conn, "Tiny", "192.0.2.50", "192.0.2.50")
     inventory.create_device(conn, "A", group, [("aa:bb:cc:00:11:22", "192.0.2.50")])
     assert inventory.next_free_ip(conn, group) is None
+
+
+def test_list_types_returns_the_distinct_types_in_use(conn, pc_group):
+    inventory.create_device(conn, "A", pc_group, type="laptop")
+    inventory.create_device(conn, "B", pc_group, type="Desktop")
+    inventory.create_device(conn, "C", pc_group, type="laptop")
+    inventory.create_device(conn, "D", pc_group)
+    assert inventory.list_types(conn) == ["Desktop", "laptop"]

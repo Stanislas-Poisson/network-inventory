@@ -19,7 +19,6 @@ def conn():
         pc,
         [("aa:bb:cc:00:00:01", "192.0.2.10"), ("aa:bb:cc:00:00:02", None)],
         type="computer",
-        category="work",
         notes="note",
     )
     inventory.update_interface(

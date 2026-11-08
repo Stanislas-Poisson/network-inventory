@@ -145,3 +145,11 @@ def test_unknown_ids_give_404(setup):
     assert client.get("/devices/999").status_code == 404
     assert client.get("/groups/999").status_code == 404
     assert post(client, "/interfaces/999/delete").status_code == 404
+
+
+def test_device_form_suggests_the_types_already_used(setup):
+    client, path = setup
+    group = inventory.create_group(conn_of(path), "PC", "192.0.2.10", "192.0.2.19")
+    inventory.create_device(conn_of(path), "A", group, type="laptop")
+    page = client.get("/devices/new").get_data(as_text=True)
+    assert '<option value="laptop">' in page
