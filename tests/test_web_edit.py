@@ -258,7 +258,7 @@ def test_connected_menu_lists_only_the_devices_the_inventory_does_not_know(setup
     scanner.store_observations(conn_of(path), scan, "2026-01-01T10:00:00Z")
     page = client.get("/devices/new").get_data(as_text=True)
     assert "data-connected" in page
-    assert 'value="de:ad:be:ef:00:01"' in page and "New Vendor" in page
+    assert 'value="de:ad:be:ef:00:01" data-ip="192.0.2.150"' in page and "New Vendor" in page
     assert "Known Vendor" not in page
 
 

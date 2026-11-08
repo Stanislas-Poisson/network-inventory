@@ -30,7 +30,7 @@
           <select aria-label="Connected devices not in the inventory">
             <option value="">Choose a device seen by the last scan</option>
             {% for o in connected %}
-              <option value="{{ o.mac }}">{{ o.ip }} - {{ o.mac }} - {{ o.vendor or "unknown" }}</option>
+              <option value="{{ o.mac }}" data-ip="{{ o.ip }}">{{ o.ip }} - {{ o.mac }} - {{ o.vendor or "unknown" }}</option>
             {% endfor %}
           </select>
         </label>
