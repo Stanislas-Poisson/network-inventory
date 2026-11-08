@@ -1,8 +1,11 @@
 import argparse
+import getpass
 import sys
 
 from network_inventory import db, inventory, scanner
 from network_inventory.compare import Finding, Status, compare
+from network_inventory.web import auth
+from network_inventory.web.app import create_app
 
 _LABELS = {
     Status.MATCHING: "ok",
@@ -21,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--interface", help="network interface to scan")
     sub.add_parser("diff", help="compare the last scan with the inventory")
     sub.add_parser("export", help="print a table of MAC, IP, name and group")
+    sub.add_parser("set-password", help="set the password of the web interface")
     serve = sub.add_parser("serve", help="start the web interface")
     serve.add_argument("--host", default="127.0.0.1", help="address to listen on")
     serve.add_argument("--port", type=int, default=8080)
@@ -81,17 +85,45 @@ def cmd_export(_args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_serve(args: argparse.Namespace) -> int:
-    from network_inventory.web.app import create_app
+def cmd_set_password(_args: argparse.Namespace) -> int:
+    password = getpass.getpass("New password: ")
+    if password != getpass.getpass("Repeat the password: "):
+        print("The passwords differ.", file=sys.stderr)
+        return 1
+    try:
+        auth.set_password(db.db_path(), password)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    print(f"Password saved. The user name is {auth.USERNAME!r}.")
+    return 0
 
-    create_app().run(host=args.host, port=args.port)
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    path = db.db_path()
+    if auth.load_hash(path) is None:
+        if not auth.is_loopback(args.host):
+            print(
+                "Refusing to listen on a network address without a password: "
+                "run `network-inventory set-password` first.",
+                file=sys.stderr,
+            )
+            return 1
+        print("Warning: no password set, open to this machine only.", file=sys.stderr)
+    create_app(path).run(host=args.host, port=args.port)
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    commands = {"scan": cmd_scan, "diff": cmd_diff, "export": cmd_export, "serve": cmd_serve}
+    commands = {
+        "scan": cmd_scan,
+        "diff": cmd_diff,
+        "export": cmd_export,
+        "serve": cmd_serve,
+        "set-password": cmd_set_password,
+    }
     if args.command is None:
         parser.print_help()
         return 0

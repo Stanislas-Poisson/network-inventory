@@ -11,6 +11,7 @@ from flask import Flask, abort, flash, g, redirect, render_template, request, se
 from network_inventory import db, inventory, scanner
 from network_inventory.compare import Status, compare
 from network_inventory.inventory import ValidationError
+from network_inventory.web import auth
 
 # How the device list can be organised: key -> label.
 VIEWS = {
@@ -39,6 +40,7 @@ def create_app(db_path: str | Path | None = None) -> Flask:
     app.secret_key = load_secret_key(Path(app.config["DB_PATH"]))
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Strict"
+    auth.install(app, Path(app.config["DB_PATH"]))
 
     def csrf_token() -> str:
         if "csrf" not in session:

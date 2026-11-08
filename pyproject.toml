@@ -31,7 +31,7 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "E501"]
+"tests/**" = ["S101", "S104", "S105", "E501"]
 
 [tool.setuptools.package-data]
 network_inventory = ["migrations/*.sql", "web/templates/*.html", "web/static/*"]
