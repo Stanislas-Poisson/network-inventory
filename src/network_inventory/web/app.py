@@ -19,7 +19,7 @@ from flask import (
     url_for,
 )
 
-from network_inventory import db, inventory, scanner, wifi
+from network_inventory import db, export, inventory, scanner, wifi
 from network_inventory.compare import Status, compare
 from network_inventory.inventory import ValidationError
 from network_inventory.web import auth
@@ -91,6 +91,7 @@ def create_app(db_path: str | Path | None = None) -> Flask:
     register_edit_routes(app, get_conn)
     register_difference_routes(app, get_conn)
     register_wifi_routes(app, get_conn)
+    register_export_routes(app, get_conn)
     return app
 
 
@@ -381,6 +382,32 @@ def register_wifi_routes(app: Flask, get_conn) -> None:
     @app.get("/wifi/<int:network_id>/qr")
     def wifi_qr_page(network_id: int):
         return render_template("wifi_qr.html", network=network_or_404(network_id))
+
+
+def register_export_routes(app: Flask, get_conn) -> None:
+    def download(text: str, name: str, mimetype: str) -> Response:
+        response = Response(text, mimetype=mimetype)
+        response.headers["Content-Disposition"] = f'attachment; filename="{name}"'
+        return response
+
+    @app.get("/export")
+    def export_page():
+        return render_template("export.html")
+
+    @app.get("/export/router.csv")
+    def export_csv():
+        return download(export.to_csv(export.router_rows(get_conn())), "router.csv", "text/csv")
+
+    @app.get("/export/router.md")
+    def export_markdown():
+        text = export.to_markdown(export.router_rows(get_conn()))
+        return download(text, "router.md", "text/markdown")
+
+    @app.get("/export/backup.json")
+    def export_backup():
+        keys = request.args.get("keys", "1") != "0"
+        text = export.to_json(export.backup(get_conn(), include_wifi_keys=keys))
+        return download(text, "network-inventory-backup.json", "application/json")
 
 
 STATUS_LABELS = {
