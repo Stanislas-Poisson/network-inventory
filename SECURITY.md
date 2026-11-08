@@ -24,7 +24,7 @@ There are no releases: only the latest commit of `main` receives fixes.
 
 ## Scope
 
-- The project scans a local network and will serve a web interface on it. Report any way to reach that interface from outside the local network, to read or change the inventory without authentication, or to run a command through a scanned value (device name, MAC, host name).
+- The project scans a local network and serves a web interface on it that edits the inventory. Report any way to reach that interface from outside the local network, to read or change the inventory without authentication, to bypass the CSRF protection of a form, or to inject a script or a command through a saved or scanned value (device name, group name, MAC, host name).
 - No device list and no router setting is stored in this repository. If you find something that looks like one, report it privately: it is a mistake.
 - A missing feature or a wrong device type is not a vulnerability: open an issue.
 
